@@ -1048,7 +1048,7 @@ static void contexts_to_server( struct context_data server_contexts[2], CONTEXT 
 {
     unsigned int count = 0;
     void *native_context = get_native_context( context );
-    void *wow_context = get_wow_context( context );
+    void *wow_context = get_wow_context( context, main_image_info.Machine );
 
     if (native_context)
     {
@@ -1073,7 +1073,7 @@ static void contexts_to_server( struct context_data server_contexts[2], CONTEXT 
 static void contexts_from_server( CONTEXT *context, struct context_data server_contexts[2] )
 {
     void *native_context = get_native_context( context );
-    void *wow_context = get_wow_context( context );
+    void *wow_context = get_wow_context( context, main_image_info.Machine );
 
     if (native_context)
     {
