@@ -2157,7 +2157,11 @@ static NTSTATUS perform_relocations( void *module, IMAGE_NT_HEADERS *nt, SIZE_T 
     ULONG *protect_old, i;
     NTSTATUS status = STATUS_SUCCESS;
 
-    base = (char *)nt->OptionalHeader.ImageBase;
+    if (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        base = (char *)((const IMAGE_NT_HEADERS64 *)nt)->OptionalHeader.ImageBase;
+    else
+        base = (char *)((const IMAGE_NT_HEADERS32 *)nt)->OptionalHeader.ImageBase;
+
     if (module == base) return STATUS_SUCCESS;  /* nothing to do */
 
     /* no relocations are performed on non page-aligned binaries */
