@@ -263,6 +263,7 @@ static const char *get_so_dir( WORD machine )
     case IMAGE_FILE_MACHINE_AMD64: return "/x86_64-unix";
     case IMAGE_FILE_MACHINE_ARMNT: return "/arm-unix";
     case IMAGE_FILE_MACHINE_ARM64: return "/aarch64-unix";
+    case IMAGE_FILE_MACHINE_RISCV64: return "/riscv64-unix";
     default: return "";
     }
 }

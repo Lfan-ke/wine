@@ -204,6 +204,13 @@ static unsigned int get_server_context_flags( const void *context, USHORT machin
         if (flags & CONTEXT_ARM64_X18) ret |= SERVER_CTX_TLS;
         if (flags & CONTEXT_ARM64_DEBUG_REGISTERS) ret |= SERVER_CTX_DEBUG_REGISTERS;
         break;
+    case IMAGE_FILE_MACHINE_RISCV64:
+        flags = ((const RISCV64_CONTEXT *)context)->ContextFlags & ~CONTEXT_RISCV64;
+        if (flags & CONTEXT_RISCV64_CONTROL) ret |= SERVER_CTX_CONTROL;
+        if (flags & CONTEXT_RISCV64_INTEGER) ret |= SERVER_CTX_INTEGER;
+        if (flags & CONTEXT_RISCV64_FLOATING_POINT) ret |= SERVER_CTX_FLOATING_POINT;
+        if (flags & CONTEXT_RISCV64_DEBUG_REGISTERS) ret |= SERVER_CTX_DEBUG_REGISTERS;
+        break;
     }
     if (flags & CONTEXT_EXCEPTION_REQUEST) ret |= SERVER_CTX_EXEC_SPACE;
     return ret;
@@ -270,7 +277,7 @@ static NTSTATUS context_to_server( struct context_data *to, USHORT to_machine, c
 
     memset( to, 0, sizeof(*to) );
     to->machine = to_machine;
-
+ERR("...\n");
     switch (MAKELONG( from_machine, to_machine ))
     {
     case MAKELONG( IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_I386 ):
@@ -686,7 +693,7 @@ static void exception_request_flags_from_server( DWORD *context_flags, const str
 static NTSTATUS context_from_server( void *dst, const struct context_data *from, USHORT machine )
 {
     DWORD i, to_flags;
-
+ERR("...\n");
     switch (MAKELONG( from->machine, machine ))
     {
     case MAKELONG( IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_I386 ):
@@ -1135,6 +1142,7 @@ static SIZE_T get_machine_context_size( USHORT machine )
     case IMAGE_FILE_MACHINE_ARMNT: return sizeof(ARM_CONTEXT);
     case IMAGE_FILE_MACHINE_AMD64: return sizeof(AMD64_CONTEXT);
     case IMAGE_FILE_MACHINE_ARM64: return sizeof(ARM64_NT_CONTEXT);
+    case IMAGE_FILE_MACHINE_RISCV64: return sizeof(RISCV64_CONTEXT);
     default: return 0;
     }
 }
