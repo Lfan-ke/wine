@@ -229,7 +229,7 @@ void x64Int3( x64emu_t *emu, uintptr_t* addr )
 }
 
 #define PRINT_STACK 4
-void x86Int(x64emu_t *emu, int code)
+void x86IntImpl(x64emu_t *emu, int code)
 {
     int inst_off = box64_dynarec ? 2 : 0;
     TRACE("%x\n", R_ESP);
@@ -323,6 +323,28 @@ void x86Int(x64emu_t *emu, int code)
     }
     #endif
     TRACE("EXIT %x\n", R_ESP);
+}
+
+/* Calls a 2-argument function `Func` setting the parent unwind frame information to the given SP and PC */
+static void __attribute__((naked)) SEHFrameTrampoline2Args(void* Arg0, void* Arg1, void* Func, uint64_t Sp, uint64_t Pc)
+{
+    asm( ".seh_proc SEHFrameTrampoline2Args\n\t"
+         "stp x3, x4, [sp, #-0x10]!\n\t"
+         ".seh_pushframe\n\t"
+         "stp x29, x30, [sp, #-0x10]!\n\t"
+         ".seh_save_fplr_x 16\n\t"
+         ".seh_endprologue\n\t"
+         "blr x2\n\t"
+         "ldp x29, x30, [sp], 0x20\n\t"
+         "ret\n\t"
+         ".seh_endproc" );
+}
+
+void x86Int(x64emu_t *emu, int code)
+{
+    CONTEXT *entry_context = NtCurrentTeb()->TlsSlots[WOW64_TLS_MAX_NUMBER];
+    SEHFrameTrampoline2Args((void*)emu, (void*)code, (void*)x86IntImpl, entry_context->Sp, entry_context->Pc);
+    NtCurrentTeb()->TlsSlots[WOW64_TLS_MAX_NUMBER] = entry_context;
 }
 
 void applyFlushTo0(x64emu_t* emu)
@@ -651,7 +673,6 @@ typedef struct dynablock_s {
 void WINAPI BTCpuSimulate(void)
 {
     WOW64_CPURESERVED *cpu = NtCurrentTeb()->TlsSlots[WOW64_TLS_CPURESERVED];
-    CONTEXT *tlsctx = NtCurrentTeb()->TlsSlots[WOW64_TLS_MAX_NUMBER]; // FIXME
     x64emu_t *emu = NtCurrentTeb()->TlsSlots[0]; // FIXME
     I386_CONTEXT *ctx = (I386_CONTEXT *)(cpu + 1);
     CONTEXT entry_context;
@@ -659,8 +680,7 @@ void WINAPI BTCpuSimulate(void)
     TRACE( "START %lx\n", ctx->Eip );
 
     RtlCaptureContext(&entry_context);
-    if (!tlsctx || tlsctx->Sp <= entry_context.Sp)
-        NtCurrentTeb()->TlsSlots[WOW64_TLS_MAX_NUMBER] = &entry_context;
+    NtCurrentTeb()->TlsSlots[WOW64_TLS_MAX_NUMBER] = &entry_context;
 
     R_EAX = ctx->Eax;
     R_EBX = ctx->Ebx;
