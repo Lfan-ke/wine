@@ -100,7 +100,7 @@ static void internalX64Setup(x64emu_t* emu, box64context_t *context, uintptr_t s
 EXPORTDYN
 x64emu_t *NewX64Emu(box64context_t *context, uintptr_t start, uintptr_t stack, int stacksize, int ownstack)
 {
-    printf_log(LOG_DEBUG, "Allocate a new X86_64 Emu, with %cIP=%p and Stack=%p/0x%X\n", box64_is32bits?'E':'R', (void*)start, (void*)stack, stacksize);
+    printf_log(LOG_DEBUG, "Allocate a new X86_64 Emu, with %cIP=%p and Stack=%p/0x%X%s\n", box64_is32bits?'E':'R', (void*)start, (void*)stack, stacksize, ownstack?" owned":"");
 
     x64emu_t *emu = (x64emu_t*)actual_calloc(1, sizeof(x64emu_t));
 
@@ -109,11 +109,11 @@ x64emu_t *NewX64Emu(box64context_t *context, uintptr_t start, uintptr_t stack, i
     return emu;
 }
 
-x64emu_t *NewX64EmuFromStack(x64emu_t* emu, box64context_t *context, uintptr_t start, uintptr_t stack, int stacksize, int ownstack)
+x64emu_t *NewX64EmuFromStack(x64emu_t* emu, box64context_t *context, uintptr_t start, uintptr_t stack, int stacksize)
 {
     printf_log(LOG_DEBUG, "New X86_64 Emu from stack, with EIP=%p and Stack=%p/0x%X\n", (void*)start, (void*)stack, stacksize);
 
-    internalX64Setup(emu, context, start, stack, stacksize, ownstack);
+    internalX64Setup(emu, context, start, stack, stacksize, 0);
     
     return emu;
 }
@@ -211,7 +211,7 @@ static void internalFreeX64(x64emu_t* emu)
 {
 #if 0 // FIXME (AZ)
     if(emu && emu->stack2free)
-        !munmap(emu->stack2free, emu->size_stack);
+        munmap(emu->stack2free, emu->size_stack);
     #ifdef BOX32
     if(emu->res_state_32)
         actual_free(emu->res_state_32);
@@ -424,7 +424,7 @@ const char* DumpCPURegs(x64emu_t* emu, uintptr_t ip, int is32bits)
     char tmp[160];
     buff[0] = '\0';
 #ifdef HAVE_TRACE
-    if(trace_emm) {
+    if(BOX64ENV(trace_emm)) {
         // do emm reg if needed
         for(int i=0; i<8; ++i) {
             sprintf(tmp, "mm%d:%016lx", i, emu->mmx[i].q);
@@ -432,10 +432,10 @@ const char* DumpCPURegs(x64emu_t* emu, uintptr_t ip, int is32bits)
             if ((i&3)==3) strcat(buff, "\n"); else strcat(buff, " ");
         }
     }
-    if(trace_xmm) {
+    if(BOX64ENV(trace_xmm)) {
         // do xmm reg if needed
         for(int i=0; i<(is32bits?8:16); ++i) {
-            if (trace_regsdiff && (emu->old_xmm[i].q[0] != emu->xmm[i].q[0] || emu->old_xmm[i].q[1] != emu->xmm[i].q[1])) {
+            if (BOX64ENV(trace_regsdiff) && (emu->old_xmm[i].q[0] != emu->xmm[i].q[0] || emu->old_xmm[i].q[1] != emu->xmm[i].q[1])) {
                 sprintf(tmp, "\e[1;35m%02d:%016lx-%016lx\e[m", i, emu->xmm[i].q[1], emu->xmm[i].q[0]);
                 emu->old_xmm[i].q[0] = emu->xmm[i].q[0];
                 emu->old_xmm[i].q[1] = emu->xmm[i].q[1];
@@ -443,8 +443,8 @@ const char* DumpCPURegs(x64emu_t* emu, uintptr_t ip, int is32bits)
                 sprintf(tmp, "%02d:%016lx-%016lx", i, emu->xmm[i].q[1], emu->xmm[i].q[0]);
             }
             strcat(buff, tmp);
-            if(box64_avx) {
-                if (trace_regsdiff && (emu->old_ymm[i].q[0] != emu->ymm[i].q[0] || emu->old_ymm[i].q[1] != emu->ymm[i].q[1])) {
+            if(BOX64ENV(avx)) {
+                if (BOX64ENV(trace_regsdiff) && (emu->old_ymm[i].q[0] != emu->ymm[i].q[0] || emu->old_ymm[i].q[1] != emu->ymm[i].q[1])) {
                     sprintf(tmp, "\e[1;35m-%016lx-%016lx\e[m", emu->ymm[i].q[1], emu->ymm[i].q[0]);
                     emu->old_ymm[i].q[0] = emu->ymm[i].q[0];
                     emu->old_ymm[i].q[1] = emu->ymm[i].q[1];
@@ -453,7 +453,7 @@ const char* DumpCPURegs(x64emu_t* emu, uintptr_t ip, int is32bits)
                 }
                 strcat(buff, tmp);
             }
-            if(box64_avx)
+            if(BOX64ENV(avx))
                 if ((i&1)==1) strcat(buff, "\n"); else strcat(buff, " ");
             else
                 if ((i&3)==3) strcat(buff, "\n"); else strcat(buff, " ");
@@ -486,14 +486,14 @@ const char* DumpCPURegs(x64emu_t* emu, uintptr_t ip, int is32bits)
     if(is32bits)
         for (int i=_AX; i<=_RDI; ++i) {
 #ifdef HAVE_TRACE
-            if (trace_regsdiff && (emu->regs[i].dword[0] != emu->oldregs[i].q[0])) {
+            if (BOX64ENV(trace_regsdiff) && (emu->regs[i].dword[0] != emu->oldregs[i].q[0])) {
                 sprintf(tmp, "\e[1;35m%s=%08x\e[m ", regname32[i], emu->regs[i].dword[0]);
                 emu->oldregs[i].q[0] = emu->regs[i].dword[0];
             } else {
-                sprintf(tmp, "%s=%08x ", regname32[i], emu->regs[i].dword[0]);
+                sprintf(tmp, "%s%s=%08x ", emu->regs[i].dword[1]?"*":"", regname32[i], emu->regs[i].dword[0]);
             }
 #else
-            sprintf(tmp, "%s=%08x ", regname[i], emu->regs[i].dword[0]);
+            sprintf(tmp, "%s%s=%08x ", emu->regs[i].dword[1]?"*":"", regname[i], emu->regs[i].dword[0]);
 #endif
             strcat(buff, tmp);
 
@@ -514,7 +514,7 @@ const char* DumpCPURegs(x64emu_t* emu, uintptr_t ip, int is32bits)
     else
         for (int i=_AX; i<=_R15; ++i) {
 #ifdef HAVE_TRACE
-            if (trace_regsdiff && (emu->regs[i].q[0] != emu->oldregs[i].q[0])) {
+            if (BOX64ENV(trace_regsdiff) && (emu->regs[i].q[0] != emu->oldregs[i].q[0])) {
                 sprintf(tmp, "\e[1;35m%s=%016lx\e[m ", regname[i], emu->regs[i].q[0]);
                 emu->oldregs[i].q[0] = emu->regs[i].q[0];
             } else {
@@ -579,10 +579,10 @@ void StopEmu(x64emu_t* emu, const char* reason, int is32bits)
 #ifdef HAVE_TRACE
     if(box64_is32bits) {
         if(my_context->dec32)
-            printf_log(LOG_NONE, "%s\n", DecodeX64Trace(my_context->dec32, emu->old_ip));
+            printf_log(LOG_NONE, "%s\n", DecodeX64Trace(my_context->dec32, emu->old_ip, 1));
     } else {
         if(my_context->dec)
-            printf_log(LOG_NONE, "%s\n", DecodeX64Trace(my_context->dec, emu->old_ip));
+            printf_log(LOG_NONE, "%s\n", DecodeX64Trace(my_context->dec, emu->old_ip, 1));
     }
 #endif
 }
@@ -619,9 +619,6 @@ void EmuCall(x64emu_t* emu, uintptr_t addr)
     multiuint_t old_op1 = emu->op1;
     multiuint_t old_op2 = emu->op2;
     multiuint_t old_res = emu->res;
-    // uc_link
-    void* old_uc_link = emu->uc_link;
-    emu->uc_link = NULL;
     //Push64(emu, GetRBP(emu));   // set frame pointer
     //SetRBP(emu, GetRSP(emu));   // save RSP
     //R_RSP -= 200;
@@ -637,7 +634,6 @@ void EmuCall(x64emu_t* emu, uintptr_t addr)
     Run(emu, 0);
     emu->quit = 0;  // reset Quit flags...
     emu->df = d_none;
-    emu->uc_link = old_uc_link;
     if(emu->flags.quitonlongjmp && emu->flags.longjmp) {
         if(emu->flags.quitonlongjmp==1)
             emu->flags.longjmp = 0;   // don't change anything because of the longjmp
@@ -725,6 +721,37 @@ static inline uint64_t readFreq()
                  : "=r"(val));
     return val;
 }
+#elif defined(LA64)
+static inline uint64_t readCycleCounter()
+{
+    uint64_t val;
+    asm volatile("rdtime.d %0, %1"
+                 : "=r"(val) : "r"(0));
+    return val;
+}
+
+static inline uint64_t readFreq()
+{
+    static size_t val = -1;
+
+    FILE* f = popen("cat /proc/cpuinfo | grep -i \"CPU MHz\" | head -n 1 | sed -r 's/CPU MHz.+:\\s{1,}//g'", "r");
+    if(f) {
+        char tmp[200] = "";
+        ssize_t s = fread(tmp, 1, 200, f);
+        pclose(f);
+        if (s > 0) return (uint64_t)atof(tmp) * 1e6;
+    }
+    
+    // fallback to rdtime + sleep
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 50000000; // 50 milliseconds
+    uint64_t cycles = readCycleCounter();
+    nanosleep(&ts, NULL);
+    // round to MHz
+    val = (size_t)round(((double)(readCycleCounter() - cycles) * 20) / 1e6) * 1e6;
+    return (uint64_t)val;
+}
 #endif
 
 #if 0 // FIXME (AZ) 
@@ -733,7 +760,7 @@ uint64_t ReadTSC(x64emu_t* emu)
     (void)emu;
     
     // Hardware counter, per architecture
-#if defined(ARM64) || defined(RV64)
+#if defined(ARM64) || defined(RV64) || defined(LA64)
     if (!box64_rdtsc) return readCycleCounter();
 #endif
     // fall back to gettime...
@@ -753,7 +780,7 @@ uint64_t ReadTSCFrequency(x64emu_t* emu)
 {
     (void)emu;
     // Hardware counter, per architecture
-#if defined(ARM64) /*|| defined(RV64)*/
+#if defined(ARM64) || defined(RV64) || defined(LA64)
     if (!box64_rdtsc) return readFreq();
 #endif
     // fall back to get time

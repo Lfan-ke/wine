@@ -27,8 +27,8 @@ void emit_or32(dynarec_arm_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3,
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, rex.w?d_or64:d_or32);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     ORRxw_REG(s1, s1, s2);
     IFX(X_PEND) {
@@ -81,8 +81,8 @@ void emit_or32c(dynarec_arm_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int
     }
     IFX(X_PEND) {
         SET_DF(s4, rex.w?d_or64:d_or32);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     ORRxw_mask(s1, s1, (mask>>12)&1, mask&0x3F, (mask>>6)&0x3F);
     IFX(X_PEND) {
@@ -130,8 +130,8 @@ void emit_xor32(dynarec_arm_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, rex.w?d_xor64:d_xor32);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     EORxw_REG(s1, s1, s2);
     IFX(X_PEND) {
@@ -177,17 +177,21 @@ void emit_xor32(dynarec_arm_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3
 void emit_xor32c(dynarec_arm_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s3, int s4)
 {
     int mask = convert_bitmask_xw(c);
-    if(!mask) {
+    if(!mask && !((!rex.w && c==0xffffffffLL) || (rex.w && c==0xffffffffffffffffLL))) {
         MOV64xw(s3, c);
         emit_xor32(dyn, ninst, rex, s1, s3, s3, s4);
         return;
     }
     IFX(X_PEND) {
         SET_DF(s4, rex.w?d_xor64:d_xor32);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
-    EORxw_mask(s1, s1, (mask>>12)&1, mask&0x3F, (mask>>6)&0x3F);
+    if(!mask) {
+        MVNxw_REG(s1, s1);
+    } else {
+        EORxw_mask(s1, s1, (mask>>12)&1, mask&0x3F, (mask>>6)&0x3F);
+    }
     IFX(X_PEND) {
         STRxw_U12(s1, xEmu, offsetof(x64emu_t, res));
     }
@@ -233,8 +237,8 @@ void emit_and32(dynarec_arm_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, rex.w?d_and64:d_and32);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     IFX(X_ZF|X_SF|X_CF|X_OF) {
         ANDSxw_REG(s1, s1, s2);
@@ -285,8 +289,8 @@ void emit_and32c(dynarec_arm_t* dyn, int ninst, rex_t rex, int s1, int64_t c, in
     }
     IFX(X_PEND) {
         SET_DF(s4, rex.w?d_and64:d_and32);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     IFX(X_ZF|X_SF|X_CF|X_OF) {
         ANDSxw_mask(s1, s1, (mask>>12)&1, mask&0x3F, (mask>>6)&0x3F);
@@ -332,8 +336,8 @@ void emit_or8(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3, int s4)
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, d_or8);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     ORRw_REG(s1, s1, s2);
     IFX(X_PEND) {
@@ -360,8 +364,8 @@ void emit_or8c(dynarec_arm_t* dyn, int ninst, int s1, uint8_t c, int s3, int s4)
     }
     IFX(X_PEND) {
         SET_DF(s4, d_or8);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     ORRw_mask(s1, s1, mask&0x3F, (mask>>6)&0x3F);
     IFX(X_PEND) {
@@ -383,8 +387,8 @@ void emit_xor8(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3, int s4)
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, d_xor8);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     EORx_REG(s1, s1, s2);
     IFX(X_PEND) {
@@ -411,8 +415,8 @@ void emit_xor8c(dynarec_arm_t* dyn, int ninst, int s1, uint8_t c, int s3, int s4
     }
     IFX(X_PEND) {
         SET_DF(s4, d_xor8);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     EORw_mask(s1, s1, mask&0x3F, (mask>>6)&0x3F);
     IFX(X_PEND) {
@@ -434,8 +438,8 @@ void emit_and8(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3, int s4)
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, d_and8);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     IFX(X_ZF) {
         ANDSw_REG(s1, s1, s2);
@@ -479,8 +483,8 @@ void emit_and8c(dynarec_arm_t* dyn, int ninst, int s1, uint8_t c, int s3, int s4
     }
     IFX(X_PEND) {
         SET_DF(s4, d_and8);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     IFX(X_ZF) {
         ANDSw_mask(s1, s1, mask&0x3F, (mask>>6)&0x3F);
@@ -519,8 +523,8 @@ void emit_or16(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3, int s4)
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, d_or16);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     ORRw_REG(s1, s1, s2);
     IFX(X_PEND) {
@@ -547,8 +551,8 @@ void emit_or16c(dynarec_arm_t* dyn, int ninst, int s1, int16_t c, int s3, int s4
     }
     IFX(X_PEND) {
         SET_DF(s4, d_or16);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     ORRw_mask(s1, s1, mask&0x3F, (mask>>6)&0x3F);
     IFX(X_PEND) {
@@ -570,8 +574,8 @@ void emit_xor16(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3, int s4)
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, d_xor16);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     EORw_REG(s1, s1, s2);
     IFX(X_PEND) {
@@ -598,8 +602,8 @@ void emit_xor16c(dynarec_arm_t* dyn, int ninst, int s1, int16_t c, int s3, int s
     }
     IFX(X_PEND) {
         SET_DF(s4, d_xor16);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     EORw_mask(s1, s1, mask&0x3F, (mask>>6)&0x3F);
     IFX(X_PEND) {
@@ -622,8 +626,8 @@ void emit_and16(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3, int s4)
     MAYUSE(s2);
     IFX(X_PEND) {
         SET_DF(s4, d_and16);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     IFX(X_ZF) {
         ANDSw_REG(s1, s1, s2);
@@ -667,8 +671,8 @@ void emit_and16c(dynarec_arm_t* dyn, int ninst, int s1, int16_t c, int s3, int s
     }
     IFX(X_PEND) {
         SET_DF(s4, d_and16);
-    } else IFX(X_ALL) {
-        SET_DFNONE(s4);
+    } else {
+        SET_DFNONE();
     }
     IFX(X_ZF) {
         ANDSw_mask(s1, s1, mask&0x3F, (mask>>6)&0x3F);

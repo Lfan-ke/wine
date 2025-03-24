@@ -59,7 +59,11 @@ typedef struct kh_dynablocks_s  kh_dynablocks_t;
 typedef void* (*procaddress_t)(const char* name);
 typedef void* (*vkprocaddess_t)(void* instance, const char* name);
 
+#ifdef LA64_ABI_1
+#define MAX_SIGNAL 128
+#else
 #define MAX_SIGNAL 64
+#endif
 
 #ifdef _WIN32
 #ifndef RV64
@@ -158,7 +162,7 @@ typedef struct box64context_s {
     uintptr_t           ep;             // entry point
 
     lib_t               *maplib;        // lib and symbols handling
-    lib_t               *local_maplib;  // libs and symbols openned has local (only collection of libs, no symbols)
+    lib_t               *local_maplib;  // libs and symbols opened has local (only collection of libs, no symbols)
     dic_t               *versym;        // dictionnary of versioned symbols
     kh_mapsymbols_t     *globdata;      // GLOBAL_DAT relocation for COPY mapping in main elf
     kh_mapsymbols_t     *uniques;       // symbols with STB_GNU_UNIQUE bindings
@@ -279,7 +283,7 @@ void FreeBox64Context(box64context_t** context);
 // Cycle log handling
 void freeCycleLog(box64context_t* ctx);
 void initCycleLog(box64context_t* context);
-void print_cycle_log(int loglevel);
+void print_rolling_log(int loglevel);
 
 // return the index of the added header
 int AddElfHeader(box64context_t* ctx, elfheader_t* head);

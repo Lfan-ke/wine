@@ -76,17 +76,18 @@ extern void x86Int(x64emu_t *emu, int code);
         LDz(x1, wback, fixedaddress);                                                                                                                     \
         ed = x1;                                                                                                                                          \
     }
-#define GETEDw(D)  if((nextop&0xC0)==0xC0) {            \
-                    ed = xEAX+(nextop&7)+(rex.b<<3);    \
-                    wback = 0;                          \
-                } else {                                \
-                    SMREAD();                           \
-                    addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, &unscaled, 0xfff<<2, 3, rex, NULL,0, D); \
-                    LDW(x1, wback, fixedaddress);       \
-                    ed = x1;                            \
-                }
+#define GETEDw(D)                                                                                                     \
+    if (MODREG) {                                                                                                     \
+        ed = xEAX + (nextop & 7) + (rex.b << 3);                                                                      \
+        wback = 0;                                                                                                    \
+    } else {                                                                                                          \
+        SMREAD();                                                                                                     \
+        addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, &unscaled, 0xfff << 2, 3, rex, NULL, 0, D); \
+        LDW(x1, wback, fixedaddress);                                                                                 \
+        ed = x1;                                                                                                      \
+    }
 #define GETSEDw(D)                                                                                                    \
-    if ((nextop & 0xC0) == 0xC0) {                                                                                    \
+    if (MODREG) {                                                                                                     \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                                     \
         SXTWx(x1, ed);                                                                                                \
         wb = x1;                                                                                                      \
@@ -108,7 +109,7 @@ extern void x86Int(x64emu_t *emu, int code);
         ed = x1;                                                                                                                                       \
     }
 #define GETSED32w(D)                                                                                                    \
-    if ((nextop & 0xC0) == 0xC0) {                                                                                      \
+    if (MODREG) {                                                                                                       \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                                       \
         SXTWx(x1, ed);                                                                                                  \
         wb = x1;                                                                                                        \
@@ -177,13 +178,10 @@ extern void x86Int(x64emu_t *emu, int code);
     } else {                                                                                            \
         SMREAD();                                                                                       \
         addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, NULL, 0, D); \
-        if (rex.is32bits)                                                                               \
-            LDRxw_REG_SXTW(x1, O, wback);                                                               \
-        else                                                                                            \
-            LDRxw_REG(x1, wback, O);                                                                    \
+        LDRxw_REGz(x1, O, wback);                                                                       \
         ed = x1;                                                                                        \
     }
-#define WBACKO(O)   if(wback) {if(rex.is32bits) STRxw_REG_SXTW(ed, O, wback); else STRxw_REG(ed, wback, O); SMWRITE2();}
+#define WBACKO(O)   if(wback) {STRxw_REGz(ed, O, wback); SMWRITE2();}
 //GETEDOx can use r1 for ed, and r2 for wback. wback is 0 if ed is xEAX..xEDI
 #define GETEDOx(O, D)                                                                                   \
     if (MODREG) {                                                                                       \
@@ -192,10 +190,7 @@ extern void x86Int(x64emu_t *emu, int code);
     } else {                                                                                            \
         SMREAD();                                                                                       \
         addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, NULL, 0, D); \
-        if (rex.is32bits)                                                                               \
-            LDRx_REG_SXTW(x1, O, wback);                                                                \
-        else                                                                                            \
-            LDRx_REG(x1, wback, O);                                                                     \
+        LDRx_REGz(x1, O, wback);                                                                        \
         ed = x1;                                                                                        \
     }
 //GETEDOz can use r1 for ed, and r2 for wback. wback is 0 if ed is xEAX..xEDI
@@ -206,14 +201,11 @@ extern void x86Int(x64emu_t *emu, int code);
     } else {                                                                                            \
         SMREAD();                                                                                       \
         addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, NULL, 0, D); \
-        if (rex.is32bits)                                                                               \
-            LDRz_REG_SXTW(x1, O, wback);                                                                \
-        else                                                                                            \
-            LDRz_REG(x1, wback, O);                                                                     \
+        LDRz_REGz(x1, O, wback);                                                                        \
         ed = x1;                                                                                        \
     }
 #define GETSEDOw(O, D)                                                                                  \
-    if ((nextop & 0xC0) == 0xC0) {                                                                      \
+    if (MODREG) {                                                                                       \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                       \
         SXTWx(x1, ed);                                                                                  \
         wb = x1;                                                                                        \
@@ -221,10 +213,7 @@ extern void x86Int(x64emu_t *emu, int code);
     } else {                                                                                            \
         SMREAD();                                                                                       \
         addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, NULL, 0, D); \
-        if (rex.is32bits)                                                                               \
-            LDRSW_REG_SXTW(x1, O, wback);                                                               \
-        else                                                                                            \
-            LDRSW_REG(x1, wback, O);                                                                    \
+        LDRSW_REGz(x1, O, wback);                                                                       \
         wb = ed = x1;                                                                                   \
     }
 //FAKEELike GETED, but doesn't get anything
@@ -259,6 +248,9 @@ extern void x86Int(x64emu_t *emu, int code);
         ed = i;                                                                                                                 \
         wb1 = 1;                                                                                                                \
     }
+//Compute wback for MDREG only, no fetching
+#define CALCEW()                                                                                                                \
+    wback = TO_NAT((nextop & 7) + (rex.b << 3));                                                                                \
 //GETEW will use i for ed, and can use r3 for wback.
 #define GETEW(i, D)                                                                                                              \
     if (MODREG) {                                                                                                                \
@@ -323,6 +315,16 @@ extern void x86Int(x64emu_t *emu, int code);
 #define EWBACKW(w)   if(wb1) {STH(w, wback, fixedaddress); SMWRITE();} else {BFIx(wback, w, 0, 16);}
 // Write back gd in correct register
 #define GWBACK BFIx(TO_NAT(((nextop & 0x38) >> 3) + (rex.r << 3)), gd, 0, 16);
+// no fetch version of GETEB for MODREG path only
+#define CALCEB()                                                                                             \
+    if (rex.rex) {                                                                                           \
+        wback = TO_NAT((nextop & 7) + (rex.b << 3));                                                         \
+        wb2 = 0;                                                                                             \
+    } else {                                                                                                 \
+        wback = (nextop & 7);                                                                                \
+        wb2 = (wback >> 2) * 8;                                                                              \
+        wback = TO_NAT(wback & 3);                                                                           \
+    }                                                                                                        \
 //GETEB will use i for ed, and can use r3 for wback.
 #define GETEB(i, D)                                                                                              \
     if (MODREG) {                                                                                                \
@@ -411,6 +413,16 @@ extern void x86Int(x64emu_t *emu, int code);
     }
 // Write eb (ed) back to original register / memory
 #define EBBACK   if(wb1) {STB(ed, wback, fixedaddress); SMWRITE();} else {BFIx(wback, ed, wb2, 8);}
+// no fetch version of GETGB
+#define CALCGB()                                             \
+    if (rex.rex) {                                           \
+        gb1 = TO_NAT(((nextop & 0x38) >> 3) + (rex.r << 3)); \
+        gb2 = 0;                                             \
+    } else {                                                 \
+        gd = (nextop & 0x38) >> 3;                           \
+        gb2 = ((gd & 4) << 1);                               \
+        gb1 = TO_NAT(gd & 3);                                \
+    }                                                        \
 //GETGB will use i for gd
 #define GETGB(i)                                             \
     if (rex.rex) {                                           \
@@ -706,8 +718,8 @@ extern void x86Int(x64emu_t *emu, int code);
     TSTw_mask(xFlags, 0b010110, 0); \
     CNEGx(r, r, cNE)
 
-#define ALIGNED_ATOMICxw ((fixedaddress && !(fixedaddress&(((1<<(2+rex.w))-1)))) || box64_dynarec_aligned_atomics)
-#define ALIGNED_ATOMICH ((fixedaddress && !(fixedaddress&1)) || box64_dynarec_aligned_atomics)
+#define ALIGNED_ATOMICxw ((fixedaddress && !(fixedaddress&(((1<<(2+rex.w))-1)))) || BOX64ENV(dynarec_aligned_atomics))
+#define ALIGNED_ATOMICH ((fixedaddress && !(fixedaddress&1)) || BOX64ENV(dynarec_aligned_atomics))
 
 // CALL will use x7 for the call address. Return value can be put in ret (unless ret is -1)
 // R0 will not be pushed/popd if ret is -2
@@ -718,6 +730,9 @@ extern void x86Int(x64emu_t *emu, int code);
 // CALL_S will use x7 for the call address. Return value can be put in ret (unless ret is -1)
 // R0 will not be pushed/popd if ret is -2. Flags are not save/restored
 #define CALL_S(F, ret) call_c(dyn, ninst, F, x7, ret, 0, 0)
+// CALL_ will use x7 for the call address.
+// All regs are saved, including scratch. This is use to call internal function that should not change state
+#define CALL_I(F) call_i(dyn, ninst, F)
 
 #define MARK        dyn->insts[ninst].mark = dyn->native_size
 #define GETMARK     dyn->insts[ninst].mark
@@ -786,6 +801,10 @@ extern void x86Int(x64emu_t *emu, int code);
 #define CBNZx_MARK2(reg)                \
     j64 = GETMARK2-(dyn->native_size);  \
     CBNZx(reg, j64)
+// Branch to MARK2 if reg is not 0 (use j64)
+#define CBNZw_MARK2(reg)                \
+    j64 = GETMARK2-(dyn->native_size);  \
+    CBNZw(reg, j64)
 #define CBNZxw_MARK2(reg)               \
     j64 = GETMARK2-(dyn->native_size);  \
     CBNZxw(reg, j64)
@@ -881,6 +900,10 @@ extern void x86Int(x64emu_t *emu, int code);
 #define B_MARKLOCK(cond)    \
     j64 = GETMARKLOCK-(dyn->native_size);   \
     Bcond(cond, j64)
+// Branch to MARKLOCK unconditional (use j64)
+#define B_MARKLOCK_nocond    \
+    j64 = GETMARKLOCK-(dyn->native_size);   \
+    B(j64)
 // Branch to MARKLOCK if reg is not 0 (use j64)
 #define CBNZw_MARKLOCK(reg)             \
     j64 = GETMARKLOCK-(dyn->native_size);  \
@@ -889,6 +912,10 @@ extern void x86Int(x64emu_t *emu, int code);
 #define CBNZx_MARKLOCK(reg)             \
     j64 = GETMARKLOCK-(dyn->native_size);  \
     CBNZx(reg, j64)
+// Branch to MARKLOCK if reg is 0 (use j64)
+#define CBZx_MARKLOCK(reg)             \
+    j64 = GETMARKLOCK-(dyn->native_size);  \
+    CBZx(reg, j64)
 
 #ifndef IFNATIVE
 #define IFNATIVE(A)     if(dyn->insts[ninst].need_nat_flags&(A))
@@ -917,7 +944,7 @@ extern void x86Int(x64emu_t *emu, int code);
 #endif
 
 // Generate FCOM with s1 and s2 scratch regs (the VCMP is already done)
-#define FCOM(s1, s2, s3, s4, v1, v2, is_f)                                  \
+#define FCOM(s1, s2, s3)                                                    \
     LDRH_U12(s3, xEmu, offsetof(x64emu_t, sw));   /*offset is 8bits right?*/\
     MOV32w(s1, 0b0100011100000000);                                         \
     BICw_REG(s3, s3, s1);                                                   \
@@ -927,33 +954,11 @@ extern void x86Int(x64emu_t *emu, int code);
     CSELw(s1, s2, s1, cEQ);                                                 \
     MOV32w(s2, 0b01000101); /* unordered */                                 \
     CSELw(s1, s2, s1, cVS);                                                 \
-    if(v1||v2) {                                                            \
-        Bcond(cVS, 10*4);                                                   \
-        if(is_f) {                                                          \
-            ORRw_mask(s4, xZR, 12, 10); /*+inf*/                            \
-            FMOVwS(s2, v1);                                                 \
-            CMPSw_REG(s2, s4);                                              \
-            Bcond(cEQ, 5*4); /* same */                                     \
-            FMOVwS(s2, v2);                                                 \
-            ORRw_mask(s4, s4, 1, 0); /*-inf*/                               \
-            CMPSw_REG(s2, s4);                                              \
-        } else {                                                            \
-            ORRx_mask(s4, xZR, 1, 12, 10); /*+inf*/                         \
-            FMOVxD(s2, v1);                                                 \
-            CMPSx_REG(s2, s4);                                              \
-            Bcond(cEQ, 5*4); /* same */                                     \
-            FMOVxD(s2, v2);                                                 \
-            ORRx_mask(s4, s4, 1, 1, 0); /*-inf*/                            \
-            CMPSx_REG(s2, s4);                                              \
-        }                                                                   \
-        Bcond(cNE, 4+4); /* same */                                         \
-        MOVZw(s2, 0);                                                       \
-    }                                                                       \
     ORRw_REG_LSL(s3, s3, s1, 8);                                            \
     STRH_U12(s3, xEmu, offsetof(x64emu_t, sw))
 
 // Generate FCOMI with s1 and s2 scratch regs (the VCMP is already done)
-#define FCOMI(s1, s2, s4, v1, v2, is_f)                                     \
+#define FCOMI(s1, s2)                                                       \
     IFX(X_OF|X_AF|X_SF|X_PEND) {                                            \
         MOV32w(s2, 0b100011010101);                                         \
         BICw_REG(xFlags, xFlags, s2);                                       \
@@ -973,32 +978,17 @@ extern void x86Int(x64emu_t *emu, int code);
         MOV32w(s2, 0b01000000); /* zero */                                  \
         CSELw(s1, s2, s1, cEQ);                                             \
         /* greater than leave 0 */                                          \
-        if(s4) {                                                            \
-            Bcond(cVS, 10*4);                                               \
-            if(is_f) {                                                      \
-                ORRw_mask(s4, xZR, 12, 10); /*+inf*/                        \
-                FMOVwS(s2, v1);                                             \
-                CMPSw_REG(s2, s4);                                          \
-                Bcond(cEQ, 5*4); /* same */                                 \
-                FMOVwS(s2, v2);                                             \
-                ORRw_mask(s4, s4, 1, 0); /*-inf*/                           \
-                CMPSw_REG(s2, s4);                                          \
-            } else {                                                        \
-                ORRx_mask(s4, xZR, 1, 12, 10); /*+inf*/                     \
-                FMOVxD(s2, v1);                                             \
-                CMPSx_REG(s2, s4);                                          \
-                Bcond(cEQ, 5*4); /* same */                                 \
-                FMOVxD(s2, v2);                                             \
-                ORRx_mask(s4, s4, 1, 1, 0); /*-inf*/                        \
-                CMPSx_REG(s2, s4);                                          \
-            }                                                               \
-            Bcond(cNE, 4+4); /* same */                                     \
-            MOVZw(s1, 0);                                                   \
-        }                                                                   \
         ORRw_REG(xFlags, xFlags, s1);                                       \
     }                                                                       \
-    SET_DFNONE(s1);                                                         \
+    SET_DFNONE();                                                           \
 
+#ifndef IF_UNALIGNED
+#define IF_UNALIGNED(A)    if(is_addr_unaligned(A))
+#endif
+
+#ifndef IF_ALIGNED
+#define IF_ALIGNED(A) if (!is_addr_unaligned(A))
+#endif
 
 #define STORE_REG(A)    STRx_U12(x##A, xEmu, offsetof(x64emu_t, regs[_##A]))
 #define STP_REGS(A, B)  STPx_S7_offset(x##A, x##B, xEmu, offsetof(x64emu_t, regs[_##A]))
@@ -1077,7 +1067,7 @@ extern void x86Int(x64emu_t *emu, int code);
 #else
 #define X87_PUSH_OR_FAIL(var, dyn, ninst, scratch, t)   \
     if ((dyn->n.x87stack==8) || (dyn->n.pushed==8)) {   \
-        if(box64_dynarec_dump) dynarec_log(LOG_NONE, " Warning, suspicious x87 Push, stack=%d/%d on inst %d\n", dyn->n.x87stack, dyn->n.pushed, ninst); \
+        if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, " Warning, suspicious x87 Push, stack=%d/%d on inst %d\n", dyn->n.x87stack, dyn->n.pushed, ninst); \
         dyn->abort = 1;                                 \
         return addr;                                    \
     }                                                   \
@@ -1085,7 +1075,7 @@ extern void x86Int(x64emu_t *emu, int code);
 
 #define X87_PUSH_EMPTY_OR_FAIL(dyn, ninst, scratch)     \
     if ((dyn->n.x87stack==8) || (dyn->n.pushed==8)) {   \
-        if(box64_dynarec_dump) dynarec_log(LOG_NONE, " Warning, suspicious x87 Push, stack=%d/%d on inst %d\n", dyn->n.x87stack, dyn->n.pushed, ninst); \
+        if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, " Warning, suspicious x87 Push, stack=%d/%d on inst %d\n", dyn->n.x87stack, dyn->n.pushed, ninst); \
         dyn->abort = 1;                                 \
         return addr;                                    \
     }                                                   \
@@ -1093,33 +1083,41 @@ extern void x86Int(x64emu_t *emu, int code);
 
 #define X87_POP_OR_FAIL(dyn, ninst, scratch)            \
     if ((dyn->n.x87stack==-8) || (dyn->n.poped==8)) {   \
-        if(box64_dynarec_dump) dynarec_log(LOG_NONE, " Warning, suspicious x87 Pop, stack=%d/%d on inst %d\n", dyn->n.x87stack, dyn->n.poped, ninst); \
+        if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, " Warning, suspicious x87 Pop, stack=%d/%d on inst %d\n", dyn->n.x87stack, dyn->n.poped, ninst); \
         dyn->abort = 1;                                 \
         return addr;                                    \
     }                                                   \
     x87_do_pop(dyn, ninst, scratch)
 #endif
 
-#define SET_DFNONE(S)    do {dyn->f.dfnone_here=1; if(!dyn->f.dfnone) {STRw_U12(wZR, xEmu, offsetof(x64emu_t, df)); dyn->f.dfnone=1;}} while(0);
-#define SET_DF(S, N)        \
-    if((N)!=d_none) {       \
-        MOVZw(S, (N));      \
-        STRw_U12(S, xEmu, offsetof(x64emu_t, df)); \
-        if(dyn->f.pending==SF_PENDING && dyn->insts[ninst].x64.need_after && !(dyn->insts[ninst].x64.need_after&X_PEND)) {  \
-            CALL_(UpdateFlags, -1, 0);              \
-            dyn->f.pending = SF_SET;                \
-            SET_NODF();     \
-        }                   \
-        dyn->f.dfnone=0;    \
-    } else SET_DFNONE(S)
+#define SET_DFNONE()                                        \
+    do {                                                    \
+        if (!dyn->f.dfnone) {                               \
+            STRw_U12(wZR, xEmu, offsetof(x64emu_t, df));    \
+        }                                                   \
+        if(!dyn->insts[ninst].x64.may_set) {                \
+            dyn->f.dfnone_here = 1;                         \
+            dyn->f.dfnone = 1;                              \
+        }                                                   \
+    } while(0)
+
+#define SET_DF(S, N)                                                                                                            \
+    if ((N) != d_none) {                                                                                                        \
+        MOVZw(S, (N));                                                                                                          \
+        STRw_U12(S, xEmu, offsetof(x64emu_t, df));                                                                              \
+        if (dyn->f.pending == SF_PENDING && dyn->insts[ninst].x64.need_after && !(dyn->insts[ninst].x64.need_after & X_PEND)) { \
+            CALL_I(UpdateFlags);                                                                                                \
+            dyn->f.pending = SF_SET;                                                                                            \
+            SET_NODF();                                                                                                         \
+        }                                                                                                                       \
+        dyn->f.dfnone = 0;                                                                                                      \
+    } else                                                                                                                      \
+        SET_DFNONE()
+
 #ifndef SET_NODF
 #define SET_NODF()          dyn->f.dfnone = 0
 #endif
 #define SET_DFOK()          dyn->f.dfnone = 1; dyn->f.dfnone_here=1
-
-#ifndef MAYSETFLAGS
-#define MAYSETFLAGS() do {} while (0)
-#endif
 
 #ifndef READFLAGS
 #define READFLAGS(A) \
@@ -1130,7 +1128,7 @@ extern void x86Int(x64emu_t *emu, int code);
             j64 = (GETMARKF)-(dyn->native_size);        \
             CBZw(x3, j64);                              \
         }                                               \
-        CALL_(UpdateFlags, -1, 0);                      \
+        CALL_I(UpdateFlags);                            \
         MARKF;                                          \
         dyn->f.pending = SF_SET;                        \
         SET_DFOK();                                     \
@@ -1144,7 +1142,7 @@ extern void x86Int(x64emu_t *emu, int code);
     && (dyn->insts[ninst].x64.gen_flags&(~(A))))                                                \
         READFLAGS(((dyn->insts[ninst].x64.gen_flags&X_PEND)?X_ALL:dyn->insts[ninst].x64.gen_flags)&(~(A)));\
     if(dyn->insts[ninst].x64.gen_flags) switch(B) {                                             \
-        case SF_SUBSET:                                                                         \
+        case SF_SUBSET: SET_DFNONE(); dyn->f.pending = SF_SET; break;                           \
         case SF_SET: dyn->f.pending = SF_SET; break;                                            \
         case SF_SET_DF: dyn->f.pending = SF_SET; dyn->f.dfnone = 1; break;                      \
         case SF_SET_NODF: dyn->f.pending = SF_SET; dyn->f.dfnone = 0; break;                    \
@@ -1168,8 +1166,10 @@ extern void x86Int(x64emu_t *emu, int code);
 #define UFLAG_OP2(A) if(dyn->insts[ninst].x64.gen_flags) {STRxw_U12(A, xEmu, offsetof(x64emu_t, op2));}
 #define UFLAG_OP12(A1, A2) if(dyn->insts[ninst].x64.gen_flags) {STRxw_U12(A1, xEmu, offsetof(x64emu_t, op1));STRxw_U12(A2, xEmu, offsetof(x64emu_t, op2));}
 #define UFLAG_RES(A) if(dyn->insts[ninst].x64.gen_flags) {STRxw_U12(A, xEmu, offsetof(x64emu_t, res));}
-#define UFLAG_DF(r, A) if(dyn->insts[ninst].x64.gen_flags) {SET_DF(r, A)}
+#define UFLAG_DF(r, A) if(dyn->insts[ninst].x64.gen_flags) {SET_DF(r, A);}
 #define UFLAG_IF if(dyn->insts[ninst].x64.gen_flags)
+#define UFLAG_IF_DF if(dyn->insts[ninst].x64.gen_flags || (dyn->insts[ninst].f_entry.dfnone && dyn->insts[ninst].f_entry.dfnone_here))
+#define UFLAG_IF2(A) if(dyn->insts[ninst].x64.gen_flags A)
 #ifndef DEFAULT
 #define DEFAULT      *ok = -1; BARRIER(2)
 #endif
@@ -1190,8 +1190,8 @@ extern void x86Int(x64emu_t *emu, int code);
 #define ARCH_RESET()
 
 #if STEP < 2
-#define GETIP(A) TABLE64(0, 0)
-#define GETIP_(A) TABLE64(0, 0)
+#define GETIP(A) MOV64x(xRIP, A)
+#define GETIP_(A) MOV64x(xRIP, A)
 #else
 // put value in the Table64 even if not using it for now to avoid difference between Step2 and Step3. Needs to be optimized later...
 #define GETIP(A)                                        \
@@ -1203,20 +1203,14 @@ extern void x86Int(x64emu_t *emu, int code);
         }                                               \
     } else {                                            \
         dyn->last_ip = (A);                             \
-        if(dyn->last_ip<0xffffffff) {                   \
-            MOV64x(xRIP, dyn->last_ip);                 \
-        } else                                          \
-            TABLE64(xRIP, dyn->last_ip);                \
+        MOV64x(xRIP, dyn->last_ip);                     \
     }
 #define GETIP_(A)                                       \
     if(dyn->last_ip && ((A)-dyn->last_ip)<0x1000) {     \
         uint64_t _delta_ip = (A)-dyn->last_ip;          \
         if(_delta_ip) {ADDx_U12(xRIP, xRIP, _delta_ip);}\
     } else {                                            \
-        if((A)<0xffffffff) {                            \
-            MOV64x(xRIP, (A));                          \
-        } else                                          \
-            TABLE64(xRIP, (A));                         \
+        MOV64x(xRIP, (A));                              \
     }
 #endif
 #define CLEARIP()   dyn->last_ip=0
@@ -1290,6 +1284,7 @@ void* arm64_next(x64emu_t* emu, uintptr_t addr);
 #define retn_to_epilog  STEPNAME(retn_to_epilog)
 #define iret_to_epilog  STEPNAME(iret_to_epilog)
 #define call_c          STEPNAME(call_c)
+#define call_i          STEPNAME(call_i)
 #define call_n          STEPNAME(call_n)
 #define grab_segdata    STEPNAME(grab_segdata)
 #define emit_cmp8       STEPNAME(emit_cmp8)
@@ -1432,6 +1427,8 @@ void* arm64_next(x64emu_t* emu, uintptr_t addr);
 #define fpu_purgecache  STEPNAME(fpu_purgecache)
 #define mmx_purgecache  STEPNAME(mmx_purgecache)
 #define x87_purgecache  STEPNAME(x87_purgecache)
+#define x87_reflectcount STEPNAME(x87_reflectcount)
+#define x87_unreflectcount STEPNAME(x87_unreflectcount)
 #define fpu_reflectcache STEPNAME(fpu_reflectcache)
 #define fpu_unreflectcache STEPNAME(fpu_unreflectcache)
 #define avx_purge_ymm   STEPNAME(avx_purge_ymm)
@@ -1458,8 +1455,9 @@ void ret_to_epilog(dynarec_arm_t* dyn, int ninst, rex_t rex);
 void retn_to_epilog(dynarec_arm_t* dyn, int ninst, rex_t rex, int n);
 void iret_to_epilog(dynarec_arm_t* dyn, int ninst, int is32bits, int is64bits);
 void call_c(dynarec_arm_t* dyn, int ninst, void* fnc, int reg, int ret, int saveflags, int save_reg);
+void call_i(dynarec_arm_t* dyn, int ninst, void* fnc);
 void call_n(dynarec_arm_t* dyn, int ninst, void* fnc, int w);
-void grab_segdata(dynarec_arm_t* dyn, uintptr_t addr, int ninst, int reg, int segment);
+void grab_segdata(dynarec_arm_t* dyn, uintptr_t addr, int ninst, int reg, int segment, int modreg);
 void emit_cmp8(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5);
 void emit_cmp16(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5);
 void emit_cmp32(dynarec_arm_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5);
@@ -1669,6 +1667,11 @@ void fpu_purgecache(dynarec_arm_t* dyn, int ninst, int next, int s1, int s2, int
 void mmx_purgecache(dynarec_arm_t* dyn, int ninst, int next, int s1);
 // purge x87 cache
 void x87_purgecache(dynarec_arm_t* dyn, int ninst, int next, int s1, int s2, int s3);
+// temporarily set x87 stack count for C functions
+void x87_reflectcount(dynarec_arm_t* dyn, int ninst, int s1, int s2);
+// restore count after
+void x87_unreflectcount(dynarec_arm_t* dyn, int ninst, int s1, int s2);
+// global fpu helper
 void fpu_reflectcache(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3);
 void fpu_unreflectcache(dynarec_arm_t* dyn, int ninst, int s1, int s2, int s3);
 void fpu_pushcache(dynarec_arm_t* dyn, int ninst, int s1, int not07);
@@ -1894,19 +1897,19 @@ uintptr_t dynarec64_AVX_F3_0F38(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip
         }                                                   \
         break
 
-#define NOTEST(s1)                                          \
-    if(box64_dynarec_test) {                                \
-        STRw_U12(xZR, xEmu, offsetof(x64emu_t, test.test)); \
-        STRw_U12(xZR, xEmu, offsetof(x64emu_t, test.clean));\
+#define NOTEST(s1)                                           \
+    if (BOX64ENV(dynarec_test)) {                            \
+        STRw_U12(xZR, xEmu, offsetof(x64emu_t, test.test));  \
+        STRw_U12(xZR, xEmu, offsetof(x64emu_t, test.clean)); \
     }
-#define SKIPTEST(s1)                                        \
-    if(box64_dynarec_test) {                                \
-        STRw_U12(xZR, xEmu, offsetof(x64emu_t, test.clean));\
+#define SKIPTEST(s1)                                         \
+    if (BOX64ENV(dynarec_test)) {                            \
+        STRw_U12(xZR, xEmu, offsetof(x64emu_t, test.clean)); \
     }
-#define GOTEST(s1, s2)                                      \
-    if(box64_dynarec_test) {                                \
-        MOV32w(s2, 1);                                      \
-        STRw_U12(s2, xEmu, offsetof(x64emu_t, test.test));  \
+#define GOTEST(s1, s2)                                     \
+    if (BOX64ENV(dynarec_test)) {                          \
+        MOV32w(s2, 1);                                     \
+        STRw_U12(s2, xEmu, offsetof(x64emu_t, test.test)); \
     }
 
 #define GETREX()                                \

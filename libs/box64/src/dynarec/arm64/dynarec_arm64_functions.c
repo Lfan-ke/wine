@@ -26,6 +26,7 @@
 #include "dynarec_arm64_functions.h"
 #include "custommem.h"
 #include "bridge.h"
+#include "gdbjit.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(box64dynarec);
 
@@ -294,7 +295,7 @@ static void neoncache_promote_double_combined(dynarec_arm_t* dyn, int ninst, int
         } else
             a = dyn->insts[ninst].n.combined1;
         int i = neoncache_get_st_f_i64_noback(dyn, ninst, a);
-        //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double_combined, ninst=%d combined%c %d i=%d (stack:%d/%d)\n", ninst, (a == dyn->insts[ninst].n.combined2)?'2':'1', a ,i, dyn->insts[ninst].n.stack_push, -dyn->insts[ninst].n.stack_pop);
+        //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double_combined, ninst=%d combined%c %d i=%d (stack:%d/%d)\n", ninst, (a == dyn->insts[ninst].n.combined2)?'2':'1', a ,i, dyn->insts[ninst].n.stack_push, -dyn->insts[ninst].n.stack_pop);
         if(i>=0) {
             dyn->insts[ninst].n.neoncache[i].t = NEON_CACHE_ST_D;
             if(!dyn->insts[ninst].n.barrier)
@@ -311,19 +312,19 @@ static void neoncache_promote_double_internal(dynarec_arm_t* dyn, int ninst, int
     while(ninst>=0) {
         a+=dyn->insts[ninst].n.stack_pop;    // adjust Stack depth: add pop'd ST (going backward)
         int i = neoncache_get_st_f_i64(dyn, ninst, a);
-        //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double_internal, ninst=%d, a=%d st=%d:%d, i=%d\n", ninst, a, dyn->insts[ninst].n.stack, dyn->insts[ninst].n.stack_next, i);
+        //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double_internal, ninst=%d, a=%d st=%d:%d, i=%d\n", ninst, a, dyn->insts[ninst].n.stack, dyn->insts[ninst].n.stack_next, i);
         if(i<0) return;
         dyn->insts[ninst].n.neoncache[i].t = NEON_CACHE_ST_D;
         // check combined propagation too
         if(dyn->insts[ninst].n.combined1 || dyn->insts[ninst].n.combined2) {
             if(dyn->insts[ninst].n.swapped) {
-                //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double_internal, ninst=%d swapped %d/%d vs %d with st %d\n", ninst, dyn->insts[ninst].n.combined1 ,dyn->insts[ninst].n.combined2, a, dyn->insts[ninst].n.stack);
+                //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double_internal, ninst=%d swapped %d/%d vs %d with st %d\n", ninst, dyn->insts[ninst].n.combined1 ,dyn->insts[ninst].n.combined2, a, dyn->insts[ninst].n.stack);
                 if (a==dyn->insts[ninst].n.combined1)
                     a = dyn->insts[ninst].n.combined2;
                 else if (a==dyn->insts[ninst].n.combined2)
                     a = dyn->insts[ninst].n.combined1;
             } else {
-                //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double_internal, ninst=%d combined %d/%d vs %d with st %d\n", ninst, dyn->insts[ninst].n.combined1 ,dyn->insts[ninst].n.combined2, a, dyn->insts[ninst].n.stack);
+                //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double_internal, ninst=%d combined %d/%d vs %d with st %d\n", ninst, dyn->insts[ninst].n.combined1 ,dyn->insts[ninst].n.combined2, a, dyn->insts[ninst].n.stack);
                 neoncache_promote_double_combined(dyn, ninst, maxinst, a);
             }
         }
@@ -339,19 +340,19 @@ static void neoncache_promote_double_forward(dynarec_arm_t* dyn, int ninst, int 
     while((ninst!=-1) && (ninst<maxinst) && (a>=0)) {
         a+=dyn->insts[ninst].n.stack_push;  // // adjust Stack depth: add push'd ST (going forward)
         if((dyn->insts[ninst].n.combined1 || dyn->insts[ninst].n.combined2) && dyn->insts[ninst].n.swapped) {
-            //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double_forward, ninst=%d swapped %d/%d vs %d with st %d\n", ninst, dyn->insts[ninst].n.combined1 ,dyn->insts[ninst].n.combined2, a, dyn->insts[ninst].n.stack);
+            //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double_forward, ninst=%d swapped %d/%d vs %d with st %d\n", ninst, dyn->insts[ninst].n.combined1 ,dyn->insts[ninst].n.combined2, a, dyn->insts[ninst].n.stack);
             if (a==dyn->insts[ninst].n.combined1)
                 a = dyn->insts[ninst].n.combined2;
             else if (a==dyn->insts[ninst].n.combined2)
                 a = dyn->insts[ninst].n.combined1;
         }
         int i = neoncache_get_st_f_i64_noback(dyn, ninst, a);
-        //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double_forward, ninst=%d, a=%d st=%d:%d(%d/%d), i=%d\n", ninst, a, dyn->insts[ninst].n.stack, dyn->insts[ninst].n.stack_next, dyn->insts[ninst].n.stack_push, -dyn->insts[ninst].n.stack_pop, i);
+        //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double_forward, ninst=%d, a=%d st=%d:%d(%d/%d), i=%d\n", ninst, a, dyn->insts[ninst].n.stack, dyn->insts[ninst].n.stack_next, dyn->insts[ninst].n.stack_push, -dyn->insts[ninst].n.stack_pop, i);
         if(i<0) return;
         dyn->insts[ninst].n.neoncache[i].t = NEON_CACHE_ST_D;
         // check combined propagation too
         if((dyn->insts[ninst].n.combined1 || dyn->insts[ninst].n.combined2) && !dyn->insts[ninst].n.swapped) {
-            //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double_forward, ninst=%d combined %d/%d vs %d with st %d\n", ninst, dyn->insts[ninst].n.combined1 ,dyn->insts[ninst].n.combined2, a, dyn->insts[ninst].n.stack);
+            //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double_forward, ninst=%d combined %d/%d vs %d with st %d\n", ninst, dyn->insts[ninst].n.combined1 ,dyn->insts[ninst].n.combined2, a, dyn->insts[ninst].n.stack);
             neoncache_promote_double_combined(dyn, ninst, maxinst, a);
         }
         a-=dyn->insts[ninst].n.stack_pop;    // adjust Stack depth: remove pop'd ST (going forward)
@@ -367,20 +368,20 @@ static void neoncache_promote_double_forward(dynarec_arm_t* dyn, int ninst, int 
 void neoncache_promote_double(dynarec_arm_t* dyn, int ninst, int a)
 {
     int i = neoncache_get_current_st_f_i64(dyn, a);
-    //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double, ninst=%d a=%d st=%d i=%d\n", ninst, a, dyn->n.stack, i);
+    //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double, ninst=%d a=%d st=%d i=%d\n", ninst, a, dyn->n.stack, i);
     if(i<0) return;
     dyn->n.neoncache[i].t = NEON_CACHE_ST_D;
     dyn->insts[ninst].n.neoncache[i].t = NEON_CACHE_ST_D;
     // check combined propagation too
     if(dyn->n.combined1 || dyn->n.combined2) {
         if(dyn->n.swapped) {
-            //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double, ninst=%d swapped! %d/%d vs %d\n", ninst, dyn->n.combined1 ,dyn->n.combined2, a);
+            //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double, ninst=%d swapped! %d/%d vs %d\n", ninst, dyn->n.combined1 ,dyn->n.combined2, a);
             if(dyn->n.combined1 == a)
                 a = dyn->n.combined2;
             else if(dyn->n.combined2 == a)
                 a = dyn->n.combined1;
         } else {
-            //if(box64_dynarec_dump) dynarec_log(LOG_NONE, "neoncache_promote_double, ninst=%d combined! %d/%d vs %d\n", ninst, dyn->n.combined1 ,dyn->n.combined2, a);
+            //if(BOX64DRENV(dynarec_dump)) dynarec_log(LOG_NONE, "neoncache_promote_double, ninst=%d combined! %d/%d vs %d\n", ninst, dyn->n.combined1 ,dyn->n.combined2, a);
             if(dyn->n.combined1 == a)
                 neoncache_promote_double(dyn, ninst, dyn->n.combined2);
             else if(dyn->n.combined2 == a)
@@ -666,101 +667,204 @@ const char* getCacheName(int t, int n)
     return buff;
 }
 
+static register_mapping_t register_mappings[] = {
+    { "rax", "x10" },
+    { "eax", "w10" },
+    { "ax", "x10" },
+    { "ah", "x10" },
+    { "al", "x10" },
+    { "rcx", "x11" },
+    { "ecx", "w11" },
+    { "cx", "x11" },
+    { "ch", "x11" },
+    { "cl", "x11" },
+    { "rdx", "x12" },
+    { "edx", "w12" },
+    { "dx", "x12" },
+    { "dh", "x12" },
+    { "dl", "x12" },
+    { "rbx", "x13" },
+    { "ebx", "w13" },
+    { "bx", "x13" },
+    { "bh", "x13" },
+    { "bl", "x13" },
+    { "rsi", "x14" },
+    { "esi", "w14" },
+    { "si", "x14" },
+    { "sil", "x14" },
+    { "rdi", "x15" },
+    { "edi", "w15" },
+    { "di", "x15" },
+    { "dil", "x15" },
+    { "rsp", "x16" },
+    { "esp", "w16" },
+    { "sp", "x16" },
+    { "spl", "x16" },
+    { "rbp", "x17" },
+    { "ebp", "w17" },
+    { "bp", "x17" },
+    { "bpl", "x17" },
+    { "r8", "x18" },
+    { "r8d", "w18" },
+    { "r8w", "x18" },
+    { "r8b", "x18" },
+    { "r9", "x19" },
+    { "r9d", "w19" },
+    { "r9w", "x19" },
+    { "r9b", "x19" },
+    { "r10", "x20" },
+    { "r10d", "w20" },
+    { "r10w", "x20" },
+    { "r10b", "x20" },
+    { "r11", "x21" },
+    { "r11d", "w21" },
+    { "r11w", "x21" },
+    { "r11b", "x21" },
+    { "r12", "x22" },
+    { "r12d", "w22" },
+    { "r12w", "x22" },
+    { "r12b", "x22" },
+    { "r13", "x23" },
+    { "r13d", "w23" },
+    { "r13w", "x23" },
+    { "r13b", "x23" },
+    { "r14", "x24" },
+    { "r14d", "w24" },
+    { "r14w", "x24" },
+    { "r14b", "x24" },
+    { "r15", "x25" },
+    { "r15d", "w25" },
+    { "r15w", "x25" },
+    { "r15b", "x25" },
+    { "rip", "x27" },
+};
+
+void printf_x64_instruction(dynarec_native_t* dyn, zydis_dec_t* dec, instruction_x64_t* inst, const char* name);
 void inst_name_pass3(dynarec_native_t* dyn, int ninst, const char* name, rex_t rex)
 {
-    if(box64_dynarec_dump) {
-        printf_x64_instruction(rex.is32bits?my_context->dec32:my_context->dec, &dyn->insts[ninst].x64, name);
-        dynarec_log(LOG_NONE, "%s%p: %d emitted opcodes, inst=%d, barrier=%d state=%d/%d/%d(%d:%d->%d:%d), %s=%X/%X, use=%X, need=%X/%X, sm=%d(%d/%d)",
-            (box64_dynarec_dump>1)?"\e[32m":"",
-            (void*)(dyn->native_start+dyn->insts[ninst].address),
-            dyn->insts[ninst].size/4,
-            ninst,
-            dyn->insts[ninst].x64.barrier,
-            dyn->insts[ninst].x64.state_flags,
-            dyn->f.pending,
-            dyn->f.dfnone,
-            dyn->insts[ninst].f_entry.pending,
-            dyn->insts[ninst].f_entry.dfnone,
-            dyn->insts[ninst].f_exit.pending,
-            dyn->insts[ninst].f_exit.dfnone,
-            dyn->insts[ninst].x64.may_set?"may":"set",
-            dyn->insts[ninst].x64.set_flags,
-            dyn->insts[ninst].x64.gen_flags,
-            dyn->insts[ninst].x64.use_flags,
-            dyn->insts[ninst].x64.need_before,
-            dyn->insts[ninst].x64.need_after,
-            dyn->smwrite, dyn->insts[ninst].will_write, dyn->insts[ninst].last_write);
-        if(dyn->insts[ninst].nat_flags_op) {
-            if(dyn->insts[ninst].nat_flags_op==NAT_FLAG_OP_TOUCH && dyn->insts[ninst].before_nat_flags)
-                printf_log(LOG_NONE, " NF:%d/read:%x", dyn->insts[ninst].nat_flags_op, dyn->insts[ninst].before_nat_flags);
-            else
-                printf_log(LOG_NONE, " NF:%d", dyn->insts[ninst].nat_flags_op);
+    if (!BOX64DRENV(dynarec_dump) && !BOX64ENV(dynarec_gdbjit) && !BOX64ENV(dynarec_perf_map)) return;
+
+    static char buf[256];
+    int length = sprintf(buf, "barrier=%d state=%d/%d/%d(%d:%d->%d:%d), %s=%X/%X, use=%X, need=%X/%X, sm=%d(%d/%d)",
+        dyn->insts[ninst].x64.barrier,
+        dyn->insts[ninst].x64.state_flags,
+        dyn->f.pending,
+        dyn->f.dfnone,
+        dyn->insts[ninst].f_entry.pending,
+        dyn->insts[ninst].f_entry.dfnone,
+        dyn->insts[ninst].f_exit.pending,
+        dyn->insts[ninst].f_exit.dfnone,
+        dyn->insts[ninst].x64.may_set ? "may" : "set",
+        dyn->insts[ninst].x64.set_flags,
+        dyn->insts[ninst].x64.gen_flags,
+        dyn->insts[ninst].x64.use_flags,
+        dyn->insts[ninst].x64.need_before,
+        dyn->insts[ninst].x64.need_after,
+        dyn->smwrite, dyn->insts[ninst].will_write, dyn->insts[ninst].last_write);
+    if (dyn->insts[ninst].nat_flags_op) {
+        if (dyn->insts[ninst].nat_flags_op == NAT_FLAG_OP_TOUCH && dyn->insts[ninst].before_nat_flags)
+            length += sprintf(buf + length, " NF:%d/read:%x", dyn->insts[ninst].nat_flags_op, dyn->insts[ninst].before_nat_flags);
+        else
+            length += sprintf(buf + length, " NF:%d", dyn->insts[ninst].nat_flags_op);
+    }
+    if (dyn->insts[ninst].use_nat_flags || dyn->insts[ninst].set_nat_flags || dyn->insts[ninst].need_nat_flags) {
+        length += sprintf(buf + length, " nf:%hhx/%hhx/%hhx", dyn->insts[ninst].set_nat_flags, dyn->insts[ninst].use_nat_flags, dyn->insts[ninst].need_nat_flags);
+    }
+    if (dyn->insts[ninst].invert_carry)
+        length += sprintf(buf + length, " CI");
+    if (dyn->insts[ninst].gen_inverted_carry)
+        length += sprintf(buf + length, " gic");
+    if (dyn->insts[ninst].before_nat_flags & NF_CF) {
+        length += sprintf(buf + length, " %ccb", dyn->insts[ninst].normal_carry_before ? 'n' : 'i');
+    }
+    if (dyn->insts[ninst].need_nat_flags & NF_CF) {
+        length += sprintf(buf + length, " %cc", dyn->insts[ninst].normal_carry ? 'n' : 'i');
+    }
+    if (dyn->insts[ninst].pred_sz) {
+        length += sprintf(buf + length, ", pred=");
+        for (int ii = 0; ii < dyn->insts[ninst].pred_sz; ++ii)
+            length += sprintf(buf + length, "%s%d", ii ? "/" : "", dyn->insts[ninst].pred[ii]);
+    }
+    if (!dyn->insts[ninst].x64.alive)
+        length += sprintf(buf + length, "not executed");
+    if (dyn->insts[ninst].x64.jmp && dyn->insts[ninst].x64.jmp_insts >= 0) {
+        length += sprintf(buf + length, ", jmp=%d", dyn->insts[ninst].x64.jmp_insts);
+    }
+    if (dyn->insts[ninst].x64.jmp && dyn->insts[ninst].x64.jmp_insts == -1)
+        length += sprintf(buf + length, ", jmp=out");
+    if (dyn->insts[ninst].x64.has_callret)
+        length += sprintf(buf + length, ", callret");
+    if (dyn->last_ip) {
+        length += sprintf(buf + length, ", last_ip=%p", (void*)dyn->last_ip);
+    }
+    for (int ii = 0; ii < 32; ++ii) {
+        switch (dyn->insts[ninst].n.neoncache[ii].t) {
+            case NEON_CACHE_ST_D: length += sprintf(buf + length, " D%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            case NEON_CACHE_ST_F: length += sprintf(buf + length, " S%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            case NEON_CACHE_ST_I64: length += sprintf(buf + length, " D%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            case NEON_CACHE_MM: length += sprintf(buf + length, " D%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            case NEON_CACHE_XMMW: length += sprintf(buf + length, " Q%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            case NEON_CACHE_XMMR: length += sprintf(buf + length, " Q%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            case NEON_CACHE_YMMW: length += sprintf(buf + length, " Q%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            case NEON_CACHE_YMMR: length += sprintf(buf + length, " Q%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            // case NEON_CACHE_SCR: length += sprintf(buf + length, " D%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
+            case NEON_CACHE_NONE:
+            default: break;
         }
-        if(dyn->insts[ninst].use_nat_flags || dyn->insts[ninst].set_nat_flags || dyn->insts[ninst].need_nat_flags)
-            printf_log(LOG_NONE, " nf:%hhx/%hhx/%hhx", dyn->insts[ninst].set_nat_flags, dyn->insts[ninst].use_nat_flags, dyn->insts[ninst].need_nat_flags);
-        if(dyn->insts[ninst].invert_carry)
-            printf_log(LOG_NONE, " CI");
-        if(dyn->insts[ninst].gen_inverted_carry)
-            printf_log(LOG_NONE, " gic");
-        if(dyn->insts[ninst].before_nat_flags&NF_CF)
-            printf_log(LOG_NONE, " %ccb", dyn->insts[ninst].normal_carry_before?'n':'i');
-        if(dyn->insts[ninst].need_nat_flags&NF_CF)
-            printf_log(LOG_NONE, " %cc", dyn->insts[ninst].normal_carry?'n':'i');
-        if(dyn->insts[ninst].pred_sz) {
-            dynarec_log(LOG_NONE, ", pred=");
-            for(int ii=0; ii<dyn->insts[ninst].pred_sz; ++ii)
-                dynarec_log(LOG_NONE, "%s%d", ii?"/":"", dyn->insts[ninst].pred[ii]);
-        }
-        if(!dyn->insts[ninst].x64.alive)
-            dynarec_log(LOG_NONE, " not executed");
-        if(dyn->insts[ninst].x64.jmp && dyn->insts[ninst].x64.jmp_insts>=0)
-            dynarec_log(LOG_NONE, ", jmp=%d", dyn->insts[ninst].x64.jmp_insts);
-        if(dyn->insts[ninst].x64.jmp && dyn->insts[ninst].x64.jmp_insts==-1)
-            dynarec_log(LOG_NONE, ", jmp=out");
-        if(dyn->insts[ninst].x64.has_callret)
-            dynarec_log(LOG_NONE, ", callret");
-        if(dyn->last_ip)
-            dynarec_log(LOG_NONE, ", last_ip=%p", (void*)dyn->last_ip);
-        for(int ii=0; ii<32; ++ii) {
-            switch(dyn->insts[ninst].n.neoncache[ii].t) {
-                case NEON_CACHE_ST_D: dynarec_log(LOG_NONE, " D%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                case NEON_CACHE_ST_F: dynarec_log(LOG_NONE, " S%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                case NEON_CACHE_ST_I64: dynarec_log(LOG_NONE, " D%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                case NEON_CACHE_MM: dynarec_log(LOG_NONE, " D%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                case NEON_CACHE_XMMW: dynarec_log(LOG_NONE, " Q%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                case NEON_CACHE_XMMR: dynarec_log(LOG_NONE, " Q%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                case NEON_CACHE_YMMW: dynarec_log(LOG_NONE, " Q%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                case NEON_CACHE_YMMR: dynarec_log(LOG_NONE, " Q%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                //case NEON_CACHE_SCR: dynarec_log(LOG_NONE, " D%d:%s", ii, getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n)); break;
-                case NEON_CACHE_NONE:
-                default:    break;
+    }
+    if (memcmp(dyn->insts[ninst].n.neoncache, dyn->n.neoncache, sizeof(dyn->n.neoncache))) {
+        length += sprintf(buf + length, " %s(Change:", (BOX64DRENV(dynarec_dump) > 1) ? "\e[1;91m" : "");
+        for (int ii = 0; ii < 32; ++ii)
+            if (dyn->insts[ninst].n.neoncache[ii].v != dyn->n.neoncache[ii].v) {
+                length += sprintf(buf + length, " V%d:%s", ii, getCacheName(dyn->n.neoncache[ii].t, dyn->n.neoncache[ii].n));
+                length += sprintf(buf + length, "->%s", getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n));
             }
+        length += sprintf(buf + length, ")%s", (BOX64DRENV(dynarec_dump) > 1) ? "\e[0;32m" : "");
+    }
+    if (dyn->insts[ninst].n.ymm_used) {
+        length += sprintf(buf + length, " ymmUsed=%04x", dyn->insts[ninst].n.ymm_used);
+    }
+    if (dyn->ymm_zero || dyn->insts[ninst].ymm0_add || dyn->insts[ninst].ymm0_sub || dyn->insts[ninst].ymm0_out) {
+        length += sprintf(buf + length, " ymm0=(%04x/%04x+%04x-%04x=%04x)", dyn->ymm_zero, dyn->insts[ninst].ymm0_in, dyn->insts[ninst].ymm0_add, dyn->insts[ninst].ymm0_sub, dyn->insts[ninst].ymm0_out);
+    }
+    if (dyn->insts[ninst].purge_ymm) {
+        length += sprintf(buf + length, " purgeYmm=%04x", dyn->insts[ninst].purge_ymm);
+    }
+    if (dyn->n.stack || dyn->insts[ninst].n.stack_next || dyn->insts[ninst].n.x87stack) {
+        length += sprintf(buf + length, " X87:%d/%d(+%d/-%d)%d", dyn->n.stack, dyn->insts[ninst].n.stack_next, dyn->insts[ninst].n.stack_push, dyn->insts[ninst].n.stack_pop, dyn->insts[ninst].n.x87stack);
+    }
+    if (dyn->insts[ninst].n.combined1 || dyn->insts[ninst].n.combined2) {
+        length += sprintf(buf + length, " %s:%d/%d", dyn->insts[ninst].n.swapped ? "SWP" : "CMB", dyn->insts[ninst].n.combined1, dyn->insts[ninst].n.combined2);
+    }
+    if (BOX64DRENV(dynarec_dump)) {
+        printf_x64_instruction(dyn, rex.is32bits ? my_context->dec32 : my_context->dec, &dyn->insts[ninst].x64, name);
+        dynarec_log(LOG_NONE, "%s%p: %d emitted opcodes, inst=%d, %s%s\n",
+            (BOX64DRENV(dynarec_dump) > 1) ? "\e[32m" : "",
+            (void*)(dyn->native_start + dyn->insts[ninst].address), dyn->insts[ninst].size / 4, ninst, buf, (BOX64DRENV(dynarec_dump) > 1) ? "\e[m" : "");
+    }
+    if (BOX64ENV(dynarec_gdbjit)) {
+        static char buf2[512];
+        if (BOX64ENV(dynarec_gdbjit) > 1) {
+            sprintf(buf2, "; %d: %d opcodes, %s", ninst, dyn->insts[ninst].size / 4, buf);
+            dyn->gdbjit_block = GdbJITBlockAddLine(dyn->gdbjit_block, (dyn->native_start + dyn->insts[ninst].address), buf2);
         }
-        if(memcmp(dyn->insts[ninst].n.neoncache, dyn->n.neoncache, sizeof(dyn->n.neoncache))) {
-            dynarec_log(LOG_NONE, " %s(Change:", (box64_dynarec_dump>1)?"\e[1;91m":"");
-            for(int ii=0; ii<32; ++ii) if(dyn->insts[ninst].n.neoncache[ii].v!=dyn->n.neoncache[ii].v) {
-                dynarec_log(LOG_NONE, " V%d:%s", ii, getCacheName(dyn->n.neoncache[ii].t, dyn->n.neoncache[ii].n));
-                dynarec_log(LOG_NONE, "->%s", getCacheName(dyn->insts[ninst].n.neoncache[ii].t, dyn->insts[ninst].n.neoncache[ii].n));
-            }
-            dynarec_log(LOG_NONE, ")%s", (box64_dynarec_dump>1)?"\e[0;32m":"");
+        zydis_dec_t* dec = rex.is32bits ? my_context->dec32 : my_context->dec;
+        const char* inst_name = name;
+        if (dec) {
+            inst_name = DecodeX64Trace(dec, dyn->insts[ninst].x64.addr, 0);
+            x64disas_add_register_mapping_annotations(buf2, inst_name, register_mappings, sizeof(register_mappings) / sizeof(register_mappings[0]));
+            inst_name = buf2;
         }
-        if(dyn->insts[ninst].n.ymm_used)
-            dynarec_log(LOG_NONE, " ymmUsed=%04x", dyn->insts[ninst].n.ymm_used);
-        if(dyn->ymm_zero || dyn->insts[ninst].ymm0_add || dyn->insts[ninst].ymm0_sub || dyn->insts[ninst].ymm0_out)
-            dynarec_log(LOG_NONE, " ymm0=(%04x/%04x+%04x-%04x=%04x)", dyn->ymm_zero, dyn->insts[ninst].ymm0_in, dyn->insts[ninst].ymm0_add ,dyn->insts[ninst].ymm0_sub, dyn->insts[ninst].ymm0_out);
-        if(dyn->insts[ninst].purge_ymm)
-            dynarec_log(LOG_NONE, " purgeYmm=%04x", dyn->insts[ninst].purge_ymm);
-        if(dyn->n.stack || dyn->insts[ninst].n.stack_next || dyn->insts[ninst].n.x87stack)
-            dynarec_log(LOG_NONE, " X87:%d/%d(+%d/-%d)%d", dyn->n.stack, dyn->insts[ninst].n.stack_next, dyn->insts[ninst].n.stack_push, dyn->insts[ninst].n.stack_pop, dyn->insts[ninst].n.x87stack);
-        if(dyn->insts[ninst].n.combined1 || dyn->insts[ninst].n.combined2)
-            dynarec_log(LOG_NONE, " %s:%d/%d", dyn->insts[ninst].n.swapped?"SWP":"CMB", dyn->insts[ninst].n.combined1, dyn->insts[ninst].n.combined2);
-        dynarec_log(LOG_NONE, "%s\n", (box64_dynarec_dump>1)?"\e[m":"");
+        dyn->gdbjit_block = GdbJITBlockAddLine(dyn->gdbjit_block, (dyn->native_start + dyn->insts[ninst].address), inst_name);
+    }
+    if (BOX64ENV(dynarec_perf_map) && BOX64ENV(dynarec_perf_map_fd) != -1) {
+        writePerfMap(dyn->insts[ninst].x64.addr, dyn->native_start + dyn->insts[ninst].address, dyn->insts[ninst].size / 4, name);
     }
 }
 
 void print_opcode(dynarec_native_t* dyn, int ninst, uint32_t opcode)
 {
-    dynarec_log(LOG_NONE, "\t%08x\t%s\n", opcode, arm64_print(opcode, (uintptr_t)dyn->block));
+    dynarec_log_prefix(0, LOG_NONE, "\t%08x\t%s\n", opcode, arm64_print(opcode, (uintptr_t)dyn->block));
 }
 
 static void x87_reset(neoncache_t* n)
@@ -830,9 +934,9 @@ uint8_t mark_natflag(dynarec_arm_t* dyn, int ninst, uint8_t flag, int before)
 {
     if(dyn->insts[ninst].x64.set_flags && !before) {
         dyn->insts[ninst].set_nat_flags |= flag;
-        if(dyn->insts[ninst].x64.use_flags) {
-            dyn->insts[ninst].use_nat_flags |= flag;
-        }
+        //if(dyn->insts[ninst].x64.use_flags) {
+        //    dyn->insts[ninst].use_nat_flags |= flag;
+        //}
     } else {
         if(before)
             dyn->insts[ninst].use_nat_flags_before |= flag;
@@ -869,39 +973,52 @@ static uint8_t getNativeFlagsUsed(dynarec_arm_t* dyn, int start, uint8_t flags)
     int nat_flags_used = 0;
     int ninst = start;
     while(ninst<dyn->size) {
-//printf_log(LOG_INFO, "getNativeFlagsUsed ninst:%d/%d, flags=%x, used_flags=%x(%d), nat_flags_op_before:%x, nat_flags_op:%x, need_after:%x\n", ninst, start, flags, used_flags, nat_flags_used, dyn->insts[ninst].nat_flags_op_before, dyn->insts[ninst].nat_flags_op, flag2native(dyn->insts[ninst].x64.need_after));
+//printf_log(LOG_INFO, "getNativeFlagsUsed ninst:%d/%d, flags=%x, used_flags=%x(%d), nat_flags_op_before:%x, nat_flags_op:%x, need_after:%x set_nat_flags:%x nat_flags_used:%x(%x)\n", ninst, start, flags, used_flags, nat_flags_used, dyn->insts[ninst].nat_flags_op_before, dyn->insts[ninst].nat_flags_op, flag2native(dyn->insts[ninst].x64.need_after),dyn->insts[ninst].set_nat_flags, dyn->insts[ninst].use_nat_flags, dyn->insts[ninst].use_nat_flags_before);
         // check if this is an opcode that generate flags but consume flags before
         if(dyn->insts[ninst].nat_flags_op_before)
             return 0;
         // check if nat flags are used "before"
-        if(dyn->insts[ninst].use_nat_flags_before)
+        if(dyn->insts[ninst].use_nat_flags_before) {
+            // check if the gen flags are compatible
+            if(dyn->insts[ninst].use_nat_flags_before&~flags)
+                return 0;
             nat_flags_used = 1;
-        if(dyn->insts[ninst].nat_flags_op==NAT_FLAG_OP_TOUCH && dyn->insts[ninst].use_nat_flags_before)
             used_flags|=dyn->insts[ninst].use_nat_flags_before&flags;
+        }
         // if the opcode generate flags, return
         if(dyn->insts[ninst].nat_flags_op==NAT_FLAG_OP_TOUCH && (start!=ninst)) {
+            if(!nat_flags_used)
+                return 0;
             if(used_flags&~dyn->insts[ninst].set_nat_flags) {
                 // check partial changes that would destroy flag state
                 if(dyn->insts[ninst].use_nat_flags_before&flags)
-                    return nat_flags_used?used_flags:0;
-                // but also check if there is before needed
+                    return used_flags;
+                // check if flags are all refreshed, then it's ok
+                if((used_flags&dyn->insts[ninst].set_nat_flags)==used_flags)
+                    return used_flags;
+                // incompatible
                 return 0;
             }
-            return nat_flags_used?used_flags:0;
+            return used_flags;
         }
         // check if there is a callret barrier
         if(dyn->insts[ninst].x64.has_callret)
             return 0;
         // check if nat flags are used
-        if(dyn->insts[ninst].use_nat_flags)
+        if(dyn->insts[ninst].use_nat_flags) {
+            // check if the gen flags are compatible
+            if(dyn->insts[ninst].use_nat_flags&~flags)
+                return 0;
             nat_flags_used = 1;
-        // check if flags are used, but not the natives ones
+            used_flags  |= dyn->insts[ninst].use_nat_flags&flags;
+        }
         if(ninst!=start && dyn->insts[ninst].x64.use_flags) {
-            if((flag2native(dyn->insts[ninst].x64.use_flags)&~(dyn->insts[ninst].use_nat_flags))&used_flags)
+            // some flags not compatible with native, partial use not allowed
+            if(flag2native(dyn->insts[ninst].x64.use_flags)!=dyn->insts[ninst].use_nat_flags)
                 return 0;
-            // also check if the gen flags are compatible
-            if((dyn->insts[ninst].use_nat_flags)&~flags)
-                return 0;
+            // check if flags are used, but not the natives ones
+            //if(dyn->insts[ninst].use_nat_flags&~used_flags)
+            //    return 0;
         }
         // check if flags are generated without native option
         if((start!=ninst) && dyn->insts[ninst].x64.gen_flags && (flag2native(dyn->insts[ninst].x64.gen_flags&dyn->insts[ninst].x64.need_after)&used_flags)) {
@@ -917,7 +1034,8 @@ static uint8_t getNativeFlagsUsed(dynarec_arm_t* dyn, int start, uint8_t flags)
         if(dyn->insts[ninst].nat_flags_op && (start!=ninst))
             return 0;
         // update used flags
-        used_flags |= (flag2native(dyn->insts[ninst].x64.need_after)&flags);
+        //used_flags |= (flag2native(dyn->insts[ninst].x64.need_after)&flags);
+        
         // go next
         if(!dyn->insts[ninst].x64.has_next) {
             // check if it's a jump to an opcode with only 1 preds, then just follow the jump
@@ -941,7 +1059,7 @@ static void propagateNativeFlags(dynarec_arm_t* dyn, int start)
 //printf_log(LOG_INFO, "propagateNativeFlags called for start=%d, flags=%x, will need:%x\n", start, flags, flag2native(dyn->insts[ninst].x64.need_after));
     if(!flags) return;
     // also check if some native flags are used but not genereated here
-    if(flag2native(dyn->insts[ninst].x64.need_after)&~flags) return;
+    if(flag2native(dyn->insts[ninst].x64.use_flags)&~flags) return;
     uint8_t used_flags = getNativeFlagsUsed(dyn, start, flags);
 //printf_log(LOG_INFO, " will use:%x, carry:%d, generate inverted carry:%d\n", used_flags, used_flags&NF_CF, dyn->insts[ninst].gen_inverted_carry);
     if(!used_flags) return; // the flags wont be used, so just cancel
@@ -986,9 +1104,9 @@ static void propagateNativeFlags(dynarec_arm_t* dyn, int start)
 
 void updateNativeFlags(dynarec_native_t* dyn)
 {
-    if(!box64_dynarec_nativeflags)
+    if(!BOX64ENV(dynarec_nativeflags))
         return;
-    // backward check if native flags are used
+    // forward check if native flags are used
     for(int ninst=0; ninst<dyn->size; ++ninst)
         if(flag2native(dyn->insts[ninst].x64.gen_flags) && (dyn->insts[ninst].nat_flags_op==NAT_FLAG_OP_TOUCH)) {
             propagateNativeFlags(dyn, ninst);
@@ -1027,6 +1145,16 @@ int nativeFlagsNeedsTransform(dynarec_arm_t* dyn, int ninst)
     if(((flags_before&flags_after)!=flags_after) || (flags_before&flags_x86))
         return 1;
     return 0;
+}
+
+void fpu_save_and_unwind(dynarec_arm_t* dyn, int ninst, neoncache_t* cache)
+{
+    memcpy(cache, &dyn->insts[ninst].n, sizeof(neoncache_t));
+    neoncacheUnwind(&dyn->insts[ninst].n);
+}
+void fpu_unwind_restore(dynarec_arm_t* dyn, int ninst, neoncache_t* cache)
+{
+    memcpy(&dyn->insts[ninst].n, cache, sizeof(neoncache_t));
 }
 
 #endif /* arm64 */

@@ -32,7 +32,7 @@ uintptr_t getX64Address(dynablock_t* db, uintptr_t arm_addr);
 
 void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
 {
-    if (box64_dynarec_log) printf_log(LOG_DEBUG, "here R_RSP=%x\n", R_RSP);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "here R_RSP=%x\n", R_RSP);
     int is32bits = 1;
     #ifdef HAVE_TRACE
     if(!addr) {
@@ -55,7 +55,7 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
     dynablock_t* block = NULL;
     if(hasAlternate((void*)addr)) {
         printf_log(LOG_DEBUG, "Jmp address has alternate: %p", (void*)addr);
-        if(box64_log<LOG_DEBUG) dynarec_log(LOG_INFO, "Jmp address has alternate: %p", (void*)addr);
+        if (BOX64ENV(log)<LOG_DEBUG) dynarec_log(LOG_INFO, "Jmp address has alternate: %p", (void*)addr);
         uintptr_t old_addr = addr;
         addr = (uintptr_t)getAlternate((void*)addr);    // set new address
         R_RIP = addr;   // but also new RIP!
@@ -64,16 +64,16 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
         block = DBAlternateBlock(emu, old_addr, addr, is32bits);
     } else
     {
-    if (box64_dynarec_log) printf_log(LOG_DEBUG, "A R_RSP=%x\n", R_RSP);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "A R_RSP=%x\n", R_RSP);
 
     //printf_log(LOG_NONE, "==== CPU Registers ====\n%s\n", DumpCPURegs(emu, R_RIP, is32bits));
 
         block = DBGetBlock(emu, addr, 1, is32bits);
-    if (box64_dynarec_log) printf_log(LOG_DEBUG, "B block=%p R_RSP=%x\n", block, R_RSP);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "B block=%p R_RSP=%x\n", block, R_RSP);
     }
     if(!block) {
         #ifdef HAVE_TRACE
-        if(LOG_INFO<=box64_dynarec_log) {
+        if(LOG_INFO<=BOX64ENV(dynarec_log)) {
             if(checkInHotPage(addr)) {
                 dynarec_log(LOG_INFO, "Not trying to run a block from a Hotpage at %p\n", (void*)addr);
             } else {
@@ -90,7 +90,7 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
     printf_log(LOG_DEBUG, "not finished yet... leave linker\n");
         // not finished yet... leave linker
         #ifdef HAVE_TRACE
-        if(box64_dynarec_log && !block->isize) {
+        if(BOX64ENV(dynarec_log) && !block->isize) {
             dynablock_t* db = FindDynablockFromNativeAddress(x2-4);
             printf_log(LOG_NONE, "Warning, NULL block at %p from %p (db=%p, x64addr=%p/%s)\n", (void*)addr, x2-4, db, db?(void*)getX64Address(db, (uintptr_t)x2-4):NULL, db?getAddrFunctionName(getX64Address(db, (uintptr_t)x2-4)):"(nil)");
         }
@@ -103,7 +103,7 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
         return native_epilog;
     }
     //dynablock_t *father = block->father?block->father:block;
-    if (box64_dynarec_log) printf_log(LOG_DEBUG, "C jblock=%p R_RSP=%x\n", jblock, R_RSP);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "C jblock=%p R_RSP=%x\n", jblock, R_RSP);
     return jblock;
 }
 #endif
@@ -122,9 +122,6 @@ void DynaCall(x64emu_t* emu, uintptr_t addr)
     multiuint_t old_op1 = emu->op1;
     multiuint_t old_op2 = emu->op2;
     multiuint_t old_res = emu->res;
-    // uc_link
-    void* old_uc_link = emu->uc_link;
-    emu->uc_link = NULL;
 
     #ifdef BOX32
     if(box64_is32bits)
@@ -137,7 +134,6 @@ void DynaCall(x64emu_t* emu, uintptr_t addr)
     DynaRun(emu);
     emu->quit = 0;  // reset Quit flags...
     emu->df = d_none;
-    emu->uc_link = old_uc_link;
     if(emu->flags.quitonlongjmp && emu->flags.longjmp) {
         if(emu->flags.quitonlongjmp==1)
             emu->flags.longjmp = 0;   // don't change anything because of the longjmp
@@ -190,7 +186,7 @@ void DynaRun(x64emu_t* emu)
             {
                 printf_log(LOG_DEBUG, "Setjmp DynaRun, fs=0x%x\n", emu->segs[_FS]);
                 #ifdef DYNAREC
-                if(box64_dynarec_test) {
+                if(BOX64ENV(dynarec_test)) {
                     if(emu->test.clean)
                         x64test_check(emu, R_RIP);
                     emu->test.clean = 0;
@@ -207,7 +203,7 @@ void DynaRun(x64emu_t* emu)
     int is32bits = 1; //(emu->segs[_CS]==0x23);
 
 #ifdef DYNAREC
-        if(!box64_dynarec)
+        if(!BOX64ENV(dynarec))
 #endif
             Run(emu, 0);
 #ifdef DYNAREC
@@ -228,13 +224,13 @@ void DynaRun(x64emu_t* emu)
                     running32bits = 1;
                 }
             }
-            if (box64_dynarec_log) printf_log(LOG_DEBUG, "DynaRun, fs=0x%x\n", emu->segs[_FS]);
-            if (box64_dynarec_log) printf_log(LOG_DEBUG, "about to DBGetBlock\n");
+            if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "DynaRun, fs=0x%x\n", emu->segs[_FS]);
+            if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "about to DBGetBlock\n");
             dynablock_t* block = (skip)?NULL:DBGetBlock(emu, R_RIP, 1, is32bits);
 
-            if (box64_dynarec_log) printf_log(LOG_DEBUG, "block %p\n", block);
-            if (box64_dynarec_log) printf_log(LOG_DEBUG, "block->block %p\n", block->block);
-            if (box64_dynarec_log) printf_log(LOG_DEBUG, "block->done %p\n", block->done);
+            if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "block %p\n", block);
+            if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "block->block %p\n", block->block);
+            if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "block->done %p\n", block->done);
             if (0) //(!block)
             {
                 int retry;
@@ -249,13 +245,20 @@ void DynaRun(x64emu_t* emu)
                 skip = 0;
                 // no block, of block doesn't have DynaRec content (yet, temp is not null)
                 // Use interpreter (should use single instruction step...)
-                if (box64_dynarec_log) dynarec_log(LOG_DEBUG, "%04d|Running Interpreter @%p, emu=%p\n", GetTID(), (void*)R_RIP, emu);
-                if(box64_dynarec_test)
+                if(BOX64ENV(dynarec_log)) {
+                    if(ACCESS_FLAG(F_TF))
+                        if (BOX64ENV(dynarec_log)) dynarec_log(LOG_INFO, "%04d|Running Interpreter @%p, emu=%p because TF is on\n", GetTID(), (void*)R_RIP, emu);
+                    else
+                        if (BOX64ENV(dynarec_log)) dynarec_log(LOG_DEBUG, "%04d|Running Interpreter @%p, emu=%p\n", GetTID(), (void*)R_RIP, emu);
+                }
+                if (BOX64ENV(dynarec_test))
                     emu->test.clean = 0;
                 Run(emu, 1);
             } else {
-                if (box64_dynarec_log) dynarec_log(LOG_DEBUG, "emu=%p %d\n", emu, offsetof(x64emu_t, win64_teb));
-                if (box64_dynarec_log) dynarec_log(LOG_DEBUG, "%04d|Running DynaRec Block @%p (%p) of %d x64 insts (hash=0x%x) emu=%p\n", GetTID(), (void*)R_RIP, block->block, block->isize, block->hash, emu);
+                if (BOX64ENV(dynarec_log)) dynarec_log(LOG_DEBUG, "%04d|Running DynaRec Block @%p (%p) of %d x64 insts (hash=0x%x) emu=%p\n", GetTID(), (void*)R_RIP, block->block, block->isize, block->hash, emu);
+                if(!BOX64ENV(dynarec_df)) {
+                    CHECK_FLAGS(emu);
+                }
                 // block is here, let's run it!
                 if (0)
                 {
@@ -269,7 +272,7 @@ void DynaRun(x64emu_t* emu)
                 }
                 native_prolog(emu, block->block);
 
-                if (box64_dynarec_log) printf_log(LOG_DEBUG, "back<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+                if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "back<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
             }
 #ifndef _WIN32
             if(emu->fork) {

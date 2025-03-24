@@ -112,6 +112,7 @@ typedef struct instruction_rv64_s {
     uintptr_t           markf[2];
     uintptr_t           markseg;
     uintptr_t           marklock;
+    uintptr_t           marklock2;
     int                 pass2choice;// value for choices that are fixed on pass2 for pass3
     uintptr_t           natcall;
     uint16_t            retn;
@@ -131,6 +132,7 @@ typedef struct instruction_rv64_s {
     uint8_t             nat_flags_carry:1;
     uint8_t             nat_flags_sign:1;
     uint8_t             nat_flags_needsign:1;
+    uint8_t             unaligned:1; // this opcode can be re-generated for unaligned special case
     uint8_t             nat_flags_op1;
     uint8_t             nat_flags_op2;
     flagcache_t         f_exit;     // flags status at end of instruction
@@ -180,6 +182,7 @@ typedef struct dynarec_rv64_s {
     uint8_t             inst_sew;       // sew inside current instruction, for vsetvli elimination
     uint8_t             inst_vl;        // vl inside current instruction, for vsetvli elimination
     uint8_t             inst_vlmul;     // vlmul inside current instruction
+    void*               gdbjit_block;
 } dynarec_rv64_t;
 
 // v0 is hardware wired to vector mask register, which should be always reserved
@@ -200,12 +203,12 @@ int Table64(dynarec_rv64_t *dyn, uint64_t val, int pass);  // add a value to tab
 
 void CreateJmpNext(void* addr, void* next);
 
-#define GO_TRACE(A, B, s0)  \
-    GETIP(addr);            \
-    MV(A1, xRIP);           \
-    STORE_XEMU_CALL(s0);    \
-    MOV64x(A2, B);          \
-    CALL(A, -1);            \
+#define GO_TRACE(A, B, s0) \
+    GETIP(addr, s0);       \
+    MV(x1, xRIP);          \
+    STORE_XEMU_CALL(s0);   \
+    MOV64x(x2, B);         \
+    CALL(A, -1, x1, x2);   \
     LOAD_XEMU_CALL()
 
 #endif //__DYNAREC_RV64_PRIVATE_H_

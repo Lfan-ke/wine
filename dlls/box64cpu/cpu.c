@@ -51,37 +51,12 @@
 #include "emu/x64emu_private.h"
 #include "emu/x64run_private.h"
 #include "emu/x87emu_private.h"
+#include "env.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(wow);
 WINE_DECLARE_DEBUG_CHANNEL(box64dump);
 
 NTSTATUS WINAPI Wow64SystemServiceEx( UINT num, UINT *args );
-
-int box64_dynarec_log = 0;
-int box64_dynarec = 1;
-int box64_dynarec_dump = 0;
-int box64_dynarec_forced = 0;
-int box64_dynarec_bigblock = 1;
-int box64_dynarec_forward = 128;
-int box64_dynarec_strongmem = 0;
-int box64_dynarec_x87double = 0;
-int box64_dynarec_fastnan = 1;
-int box64_dynarec_fastround = 1;
-int box64_dynarec_safeflags = 1;
-int box64_dynarec_callret = 0;
-int box64_dynarec_hotpage = 0;
-int box64_dynarec_fastpage = 0;
-int box64_dynarec_bleeding_edge = 1;
-int box64_dynarec_jvm = 1;
-int box64_dynarec_wait = 1;
-int box64_dynarec_test = 0;
-int box64_dynarec_missing = 0;
-int box64_dynarec_trace = 0;
-int box64_dynarec_aligned_atomics = 0;
-int box64_dynarec_div0 = 0;
-int box64_dynarec_nativeflags = 1;
-int box64_dynarec_weakbarrier = 1;
-int box64_dynarec_pause = 3;
 
 int arm64_atomics = 0;
 int arm64_crc32 = 0;
@@ -235,7 +210,7 @@ void x64Int3( x64emu_t *emu, uintptr_t* addr )
 #define PRINT_STACK 4
 void x86IntImpl(x64emu_t *emu, int code)
 {
-    int inst_off = box64_dynarec ? 2 : 0;
+    int inst_off = box64env.dynarec ? 2 : 0;
     TRACE("%x\n", R_ESP);
     #if PRINT_STACK
     {
@@ -707,7 +682,7 @@ void WINAPI BTCpuSimulate(void)
 
     fpu_to_box(ctx, emu);
 
-    if (box64_dynarec)
+    if (box64env.dynarec)
         DynaRun(emu);
     else
         Run(emu, 0);
@@ -721,11 +696,14 @@ static uint8_t box64_is_addr_in_jit(void* addr)
     return !!FindDynablockFromNativeAddress(addr);
 }
 
-uintptr_t getX64Address(dynablock_t* db, uintptr_t arm_addr)
+
+uintptr_t getX64Address(dynablock_t* db, uintptr_t native_addr)
 {
     uintptr_t x64addr = (uintptr_t)db->x64_addr;
     uintptr_t armaddr = (uintptr_t)db->block;
     int i = 0;
+    if(native_addr<(uintptr_t)db->block || native_addr>(uintptr_t)db->block+db->size)
+        return 0;
     do {
         int x64sz = 0;
         int armsz = 0;
@@ -735,15 +713,42 @@ uintptr_t getX64Address(dynablock_t* db, uintptr_t arm_addr)
             ++i;
         } while((db->instsize[i-1].x64==15) || (db->instsize[i-1].nat==15));
         // if the opcode is a NOP on ARM side (so armsz==0), it cannot be an address to find
-        if(armsz) {
-            if((arm_addr>=armaddr) && (arm_addr<(armaddr+armsz)))
-                return x64addr;
-            armaddr+=armsz;
-            x64addr+=x64sz;
-        } else
-            x64addr+=x64sz;
+        if((native_addr>=armaddr) && (native_addr<(armaddr+armsz)))
+            return x64addr;
+        armaddr+=armsz;
+        x64addr+=x64sz;
     } while(db->instsize[i].x64 || db->instsize[i].nat);
     return x64addr;
+}
+int getX64AddressInst(dynablock_t* db, uintptr_t x64pc)
+{
+    uintptr_t x64addr = (uintptr_t)db->x64_addr;
+    uintptr_t armaddr = (uintptr_t)db->block;
+    int i = 0;
+    int ret = 0;
+    if(x64pc<(uintptr_t)db->x64_addr || x64pc>(uintptr_t)db->x64_addr+db->x64_size)
+        return -1;
+    do {
+        int x64sz = 0;
+        int armsz = 0;
+        do {
+            x64sz+=db->instsize[i].x64;
+            armsz+=db->instsize[i].nat*4;
+            ++i;
+        } while((db->instsize[i-1].x64==15) || (db->instsize[i-1].nat==15));
+        // if the opcode is a NOP on ARM side (so armsz==0), it cannot be an address to find
+        if((x64pc>=x64addr) && (x64pc<(x64addr+x64sz)))
+            return ret;
+        armaddr+=armsz;
+        x64addr+=x64sz;
+        ret++;
+    } while(db->instsize[i].x64 || db->instsize[i].nat);
+    return ret;
+}
+
+int is_addr_unaligned(uintptr_t addr)
+{
+    return 0;
 }
 
 /* Note: This works on Linux by emulating the access to the register,
@@ -854,7 +859,9 @@ NTSTATUS WINAPI BTCpuProcessInit(void)
     UNICODE_STRING str;
     void **p__wine_unix_call_dispatcher;
 
-    MESSAGE("starting Box64 based box64cpu.dll\n");
+    MESSAGE("starting Box64 v0.3.4 based box64cpu.dll\n");
+
+    LoadEnvVariables();
 
     __TRY
     {
@@ -868,8 +875,8 @@ NTSTATUS WINAPI BTCpuProcessInit(void)
 
     if (TRACE_ON(box64dump))
     {
-        box64_dynarec_log = 1;
-        box64_dynarec_dump = 1;
+        box64env.dynarec_log = 1;
+        box64env.dynarec_dump = 1;
     }
 
     memset(bopcode, 0xc3, sizeof(bopcode));
@@ -898,6 +905,8 @@ NTSTATUS WINAPI BTCpuProcessInit(void)
     RtlInitializeCriticalSection(&box64_context.mutex_lock);
 
     InitX64Trace(&box64_context);
+
+    PrintEnvVariables(&box64env, LOG_INFO);
 
     return STATUS_SUCCESS;
 }
@@ -1011,7 +1020,7 @@ NTSTATUS WINAPI BTCpuResetToConsistentState( EXCEPTION_POINTERS *ptrs )
                 ERR("db dirty %x\n", db2->dirty);
             }
             unprotectDB((uintptr_t)addr, 1, 1);    // unprotect 1 byte... But then, the whole page will be unprotected
-            db_need_test = (db && !box64_dynarec_fastpage)?getNeedTest((uintptr_t)db->x64_addr):0;
+            db_need_test = db?getNeedTest((uintptr_t)db->x64_addr):0;
             prot = getProtection((uintptr_t)addr);
             ERR("addr prot %x\n", prot);
             ERR("db_need_test %x\n", db_need_test);
