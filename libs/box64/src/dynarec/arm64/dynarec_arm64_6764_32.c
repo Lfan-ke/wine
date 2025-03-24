@@ -70,9 +70,10 @@ uintptr_t dynarec64_6764_32(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, in
             if(MODREG) {   // reg <= reg
                 MOVxw_REG(TO_NAT((nextop & 7) + (rex.b << 3)), gd);
             } else {                    // mem <= reg
-                grab_segdata(dyn, addr, ninst, x4, seg);
-                addr = geted16(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, NULL, 0, 0, 0);
-                STRw_REG(gd, ed, x4);
+                grab_segdata(dyn, addr, ninst, x4, seg, (MODREG));
+                addr = geted16(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, &unscaled, 0xfff<<2, 3, 0);
+                ADDz_REG(x4, x4, ed);
+                STz(gd, x4, fixedaddress);
             }
             break;
 
@@ -83,9 +84,10 @@ uintptr_t dynarec64_6764_32(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, in
             if(MODREG) {   // reg => reg
                 MOVxw_REG(gd, TO_NAT((nextop & 7) + (rex.b << 3)));
             } else {                    // mem => reg
-                grab_segdata(dyn, addr, ninst, x4, seg);
-                addr = geted16(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, NULL, 0, 0, 0);
-                LDRw_REG(gd, ed, x4);
+                grab_segdata(dyn, addr, ninst, x4, seg, (MODREG));
+                addr = geted16(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, &unscaled, 0xfff<<2, 3, 0);
+                ADDz_REG(x4, x4, ed);
+                LDz(gd, x4, fixedaddress);
             }
             break;
 
@@ -96,17 +98,18 @@ uintptr_t dynarec64_6764_32(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, in
                 POP1_32(x1);
                 MOVxw_REG(TO_NAT((nextop & 7) + (rex.b << 3)), x1);
             } else {                    // mem <= reg
-                grab_segdata(dyn, addr, ninst, x4, seg);
+                grab_segdata(dyn, addr, ninst, x4, seg, (MODREG));
                 POP1_32(x1);
-                addr = geted16(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, NULL, 0, 0, 0);
-                STRw_REG(x1, ed, x4);
+                addr = geted16(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, &unscaled, 0xfff<<2, 3, 0);
+                ADDz_REG(x4, x4, ed);
+                STz(x1, x4, fixedaddress);
             }
             break;
 
         case 0xA1:
             INST_NAME("MOV EAX, Seg:[Od]");
             i32 = F16;
-            grab_segdata(dyn, addr, ninst, x4, seg);
+            grab_segdata(dyn, addr, ninst, x4, seg, 0);
             if(i32<4096 && !(i32&3)) {
                 LDRw_U12(xRAX, x4, i32);
             } else if(i32<256) {
@@ -120,7 +123,7 @@ uintptr_t dynarec64_6764_32(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, in
         case 0xA3:
             INST_NAME("MOV Seg:[Od], EAX");
             i32 = F16;
-            grab_segdata(dyn, addr, ninst, x4, seg);
+            grab_segdata(dyn, addr, ninst, x4, seg, 0);
             if(i32<4096 && !(i32&3)) {
                 STRw_U12(xRAX, x4, i32);
             } else if(i32<256) {
@@ -133,16 +136,17 @@ uintptr_t dynarec64_6764_32(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, in
 
         case 0xFF:
             nextop = F8;
-            grab_segdata(dyn, addr, ninst, x4, seg);
+            grab_segdata(dyn, addr, ninst, x4, seg, (MODREG));
             switch((nextop>>3)&7) {
                 case 6: // Push Ed
                     INST_NAME("PUSH FS:Ew");
-                    if((nextop&0xC0)==0xC0) {   // reg
+                    if (MODREG) {
                         DEFAULT;
-                    } else {                    // mem <= i32
+                    } else {
                         SMREAD();
-                        addr = geted16(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, &unscaled, 0, 0, 0);
-                        LDRw_REG(x3, ed, x4);
+                        addr = geted16(dyn, addr, ninst, nextop, &ed, x2, &fixedaddress, &unscaled, 0xfff<<2, 3, 0);
+                        ADDz_REG(x4, x4, ed);
+                        LDW(x3, x4, fixedaddress);
                         PUSH1_32(x3);
                     }
                     break;

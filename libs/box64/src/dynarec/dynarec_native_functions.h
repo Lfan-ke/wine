@@ -77,6 +77,7 @@ void native_pclmul_y(x64emu_t* emu, int gy, int vy, void* p, uint32_t u8);
 void native_clflush(x64emu_t* emu, void* p);
 
 void native_ud(x64emu_t* emu);
+void native_br(x64emu_t* emu);
 void native_priv(x64emu_t* emu);
 void native_singlestep(x64emu_t* emu);
 void native_int3(x64emu_t* emu);
@@ -106,6 +107,13 @@ int is_avx_zero(dynarec_native_t* dyn, int ninst, int reg);
 int is_avx_zero_unset(dynarec_native_t* dyn, int ninst, int reg);
 void avx_mark_zero_reset(dynarec_native_t* dyn, int ninst);
 void avx_unmark_zero(dynarec_native_t* dyn, int ninst, int reg);
+
+typedef struct register_mapping_s {
+    const char* name;
+    const char* native;
+} register_mapping_t;
+
+void x64disas_add_register_mapping_annotations(char* buf, const char* disas, const register_mapping_t* mappings, size_t mappings_sz);
 
 ADDITIONNAL_DEFINITION()
 
