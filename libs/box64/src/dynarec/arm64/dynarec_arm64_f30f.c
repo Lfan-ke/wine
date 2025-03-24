@@ -133,13 +133,13 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
             nextop = F8;
             GETGD;
             GETEXSS(d0, 0, 0);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);
                 BFCw(x5, FPSR_IOC, 1);   // reset IOC bit
                 MSR_fpsr(x5);
             }
             FCVTZSxwS(gd, d0);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);   // get back FPSR to check the IOC bit
                 TBZ_NEXT(x5, FPSR_IOC);
                 if(rex.w) {
@@ -154,7 +154,7 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
             nextop = F8;
             GETGD;
             GETEXSS(q0, 0, 0);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);
                 BFCw(x5, FPSR_IOC, 1);   // reset IOC bit
                 MSR_fpsr(x5);
@@ -164,7 +164,7 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
             FRINTIS(d1, q0);
             x87_restoreround(dyn, ninst, u8);
             FCVTZSxwS(gd, d1);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);   // get back FPSR to check the IOC bit
                 TBZ_NEXT(x5, FPSR_IOC);
                 if(rex.w) {
@@ -187,8 +187,12 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
                     GETED(0);
                     GETGD;
                     MRS_nzcv(x3);
-                    LSRw(x4, xFlags, F_OF);
-                    BFIx(x3, x4, 29, 1); // set C
+                    IFNATIVE_BEFORE(NF_VF) {
+                        LSRw(x4, x3, NZCV_V);
+                    } else {
+                        LSRw(x4, xFlags, F_OF);
+                    }
+                    BFIx(x3, x4, NZCV_C, 1); // set C
                     MSR_nzcv(x3);      // load CC into ARM CF
                     IFX(X_OF) {
                         ADCSxw_REG(gd, gd, ed);
@@ -244,11 +248,24 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
         case 0x58:
             INST_NAME("ADDSS Gx, Ex");
             nextop = F8;
-            GETGX(v0, 1);
-            d1 = fpu_get_scratch(dyn, ninst);
+            GETGX(d1, 1);
+            v1 = fpu_get_scratch(dyn, ninst);
             GETEXSS(d0, 0, 0);
-            FADDS(d1, v0, d0);  // the high part of the vector is erased...
-            VMOVeS(v0, 0, d1, 0);
+            if(!BOX64ENV(dynarec_fastnan)) {
+                v0 = fpu_get_scratch(dyn, ninst);
+                q0 = fpu_get_scratch(dyn, ninst);
+                // check if any input value was NAN
+                FMAXS(v0, d0, d1);    // propagate NAN
+                FCMEQS(v0, v0, v0);    // 0 if NAN, 1 if not NAN
+                FADDS(v1, d1, d0);  // the high part of the vector is erased...
+                FCMEQS(q0, v1, v1);    // 0 => out is NAN
+                VBIC(q0, v0, q0);      // forget it in any input was a NAN already
+                VSHL_32(q0, q0, 31);     // only keep the sign bit
+                VORR(v1, v1, q0);      // NAN -> -NAN
+            } else {
+                FADDS(v1, d1, d0);  // the high part of the vector is erased...
+            }
+            VMOVeS(d1, 0, v1, 0);
             break;
         case 0x59:
             INST_NAME("MULSS Gx, Ex");
@@ -256,19 +273,19 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
             GETGX(d1, 1);
             v1 = fpu_get_scratch(dyn, ninst);
             GETEXSS(d0, 0, 0);
-            if(!box64_dynarec_fastnan) {
+            if(!BOX64ENV(dynarec_fastnan)) {
                 v0 = fpu_get_scratch(dyn, ninst);
                 q0 = fpu_get_scratch(dyn, ninst);
                 // check if any input value was NAN
                 FMAXS(v0, d0, d1);    // propagate NAN
                 FCMEQS(v0, v0, v0);    // 0 if NAN, 1 if not NAN
-                FMULS(v1, d1, d0);
+                FMULS(v1, d1, d0);  // the high part of the vector is erased...
                 FCMEQS(q0, v1, v1);    // 0 => out is NAN
                 VBIC(q0, v0, q0);      // forget it in any input was a NAN already
-                VSHL_32(q0, q0, 31);   // only keep the sign bit
+                VSHL_32(q0, q0, 31);     // only keep the sign bit
                 VORR(v1, v1, q0);      // NAN -> -NAN
             } else {
-                FMULS(v1, d1, d0);
+                FMULS(v1, d1, d0);  // the high part of the vector is erased...
             }
             VMOVeS(d1, 0, v1, 0);
             break;
@@ -286,7 +303,7 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
             nextop = F8;
             GETEX(v1, 0, 0) ;
             GETGX_empty(v0);
-            if(box64_dynarec_fastround) {
+            if(BOX64ENV(dynarec_fastround)) {
                 VFCVTZSQS(v0, v1);
             } else {
                 MRS_fpsr(x5);
@@ -309,11 +326,24 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
         case 0x5C:
             INST_NAME("SUBSS Gx, Ex");
             nextop = F8;
-            GETGX(v0, 1);
-            d1 = fpu_get_scratch(dyn, ninst);
+            GETGX(d1, 1);
+            v1 = fpu_get_scratch(dyn, ninst);
             GETEXSS(d0, 0, 0);
-            FSUBS(d1, v0, d0);
-            VMOVeS(v0, 0, d1, 0);
+            if(!BOX64ENV(dynarec_fastnan)) {
+                v0 = fpu_get_scratch(dyn, ninst);
+                q0 = fpu_get_scratch(dyn, ninst);
+                // check if any input value was NAN
+                FMAXS(v0, d0, d1);    // propagate NAN
+                FCMEQS(v0, v0, v0);    // 0 if NAN, 1 if not NAN
+                FSUBS(v1, d1, d0);  // the high part of the vector is erased...
+                FCMEQS(q0, v1, v1);    // 0 => out is NAN
+                VBIC(q0, v0, q0);      // forget it in any input was a NAN already
+                VSHL_32(q0, q0, 31);     // only keep the sign bit
+                VORR(v1, v1, q0);      // NAN -> -NAN
+            } else {
+                FSUBS(v1, d1, d0);  // the high part of the vector is erased...
+            }
+            VMOVeS(d1, 0, v1, 0);
             break;
         case 0x5D:
             INST_NAME("MINSS Gx, Ex");
@@ -334,11 +364,24 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
         case 0x5E:
             INST_NAME("DIVSS Gx, Ex");
             nextop = F8;
-            GETGX(v0, 1);
-            d1 = fpu_get_scratch(dyn, ninst);
+            GETGX(d1, 1);
+            v1 = fpu_get_scratch(dyn, ninst);
             GETEXSS(d0, 0, 0);
-            FDIVS(d1, v0, d0);
-            VMOVeS(v0, 0, d1, 0);
+            if(!BOX64ENV(dynarec_fastnan)) {
+                v0 = fpu_get_scratch(dyn, ninst);
+                q0 = fpu_get_scratch(dyn, ninst);
+                // check if any input value was NAN
+                FMAXS(v0, d0, d1);    // propagate NAN
+                FCMEQS(v0, v0, v0);    // 0 if NAN, 1 if not NAN
+                FDIVS(v1, d1, d0);  // the high part of the vector is erased...
+                FCMEQS(q0, v1, v1);    // 0 => out is NAN
+                VBIC(q0, v0, q0);      // forget it in any input was a NAN already
+                VSHL_32(q0, q0, 31);     // only keep the sign bit
+                VORR(v1, v1, q0);      // NAN -> -NAN
+            } else {
+                FDIVS(v1, d1, d0);  // the high part of the vector is erased...
+            }
+            VMOVeS(d1, 0, v1, 0);
             break;
         case 0x5F:
             INST_NAME("MAXSS Gx, Ex");
@@ -419,8 +462,20 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
                 v1 = sse_get_reg_empty(dyn, ninst, x1, (nextop&7) + (rex.b<<3));
                 VMOVQ(v1, v0);
             } else {
-                addr = geted(dyn, addr, ninst, nextop, &ed, x1, &fixedaddress, &unscaled, 0xfff<<4, 15, rex, NULL, 0, 0);
-                VST128(v0, ed, fixedaddress);
+                IF_UNALIGNED(ip) {
+                    addr = geted(dyn, addr, ninst, nextop, &wback, x1, &fixedaddress, NULL, 0, 0, rex, NULL, 0, 0);
+                    if(wback!=x1) {
+                        MOVx_REG(x1, wback);
+                        wback = x1;
+                    }
+                    for(int i=0; i<16; ++i) {
+                        VST1_8(v0, i, wback);
+                        ADDx_U12(wback, wback, 1);
+                    }
+                } else {
+                    addr = geted(dyn, addr, ninst, nextop, &ed, x1, &fixedaddress, &unscaled, 0xfff<<4, 15, rex, NULL, 0, 0);
+                    VST128(v0, ed, fixedaddress);
+                }
                 SMWRITE2();
             }
             break;
@@ -456,7 +511,7 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
         case 0xB8:
             INST_NAME("POPCNT Gd, Ed");
             SETFLAGS(X_ALL, SF_SET);
-            SET_DFNONE(x1);
+            SET_DFNONE();
             nextop = F8;
             v1 = fpu_get_scratch(dyn, ninst);
             GETGD;
@@ -480,19 +535,27 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
             }
             CNT_8(v1, v1);
             UADDLV_8(v1, v1);
-            VMOVQDto(gd, v1, 0);
+            VMOVHto(gd, v1, 0);
             IFX(X_ALL) {
-                MOV32w(x1, (1<<F_OF) | (1<<F_SF) | (1<<F_ZF) | (1<<F_AF) | (1<<F_CF) | (1<<F_PF));
-                BICw(xFlags, xFlags, x1);
-                CBNZx(gd, 4+4);
-                BFIw(xFlags, xFlags, F_ZF, 1);
+                IFX(X_AF|X_PF|X_SF|X_OF|X_CF) {
+                    MOV32w(x1, (1<<F_OF) | (1<<F_SF) | (1<<F_ZF) | (1<<F_AF) | (1<<F_CF) | (1<<F_PF));
+                    BICw(xFlags, xFlags, x1);
+                }
+                IFX(X_ZF) {
+                    CMPSw_U12(gd, 0);
+                    IFNATIVE(NF_EQ) {}
+                    else {
+                        CSETw(x1, cEQ);
+                        BFIw(xFlags, x1, F_ZF, 1);
+                    }
+                }
             }
             break;
 
         case 0xBC:
             INST_NAME("TZCNT Gd, Ed");
             SETFLAGS(X_CF|X_ZF, SF_SUBSET);
-            SET_DFNONE(x1);
+            SET_DFNONE();
             nextop = F8;
             GETED(0);
             GETGD;
@@ -512,7 +575,7 @@ uintptr_t dynarec64_F30F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int n
         case 0xBD:
             INST_NAME("LZCNT Gd, Ed");
             SETFLAGS(X_CF|X_ZF, SF_SUBSET);
-            SET_DFNONE(x1);
+            SET_DFNONE();
             nextop = F8;
             GETED(0);
             GETGD;

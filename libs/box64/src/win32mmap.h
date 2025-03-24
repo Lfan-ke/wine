@@ -16,6 +16,7 @@ typedef __int64 ssize_t;
 
 #define MAP_FAILED      ((void *) -1)
 #define MAP_PRIVATE     0x02
+#define MAP_FIXED       0x10
 #define MAP_ANONYMOUS   0x20
 #define MAP_32BIT       0x40
 

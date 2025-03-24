@@ -28,7 +28,7 @@ int mprotect(void *addr, size_t len, int prot)
     ULONG old_prot;
     SIZE_T allocsize = len;
     ntstatus = NtProtectVirtualMemory( GETCURRENTPROCESS, &addr, &allocsize, prot_unix_to_win32(prot), &old_prot );
-    if (box64_dynarec_log) printf_log(LOG_DEBUG, "ntstatus %08lx %p %ld -> %d\n", ntstatus, addr, old_prot, prot_unix_to_win32(prot));
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "ntstatus %08lx %p %ld -> %d\n", ntstatus, addr, old_prot, prot_unix_to_win32(prot));
 }
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
@@ -38,7 +38,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     ULONG_PTR limit;
     void *ret = NULL;
 
-    if (box64_dynarec_log) printf_log(LOG_INFO, "%p %x %i %i\n", addr, length, prot, flags);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_INFO, "%p %x %i %i\n", addr, length, prot, flags);
 
     if (addr != NULL)
     {
@@ -62,14 +62,14 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
         limit = 0;
 
     ntstatus = NtAllocateVirtualMemory(NtCurrentProcess(), &ret, limit, &sz, MEM_COMMIT | MEM_RESERVE, prot_unix_to_win32(prot));
-    if (box64_dynarec_log) printf_log(LOG_DEBUG, "ntstatus %08lx %p\n", ntstatus, ret);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_DEBUG, "ntstatus %08lx %p\n", ntstatus, ret);
     return ret;
 }
 
 int munmap(void *addr, size_t length)
 {
     int ret = 0;
-    if (box64_dynarec_log) printf_log(LOG_INFO, "%p %x\n", addr, length);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_INFO, "%p %x\n", addr, length);
     if (NtFreeVirtualMemory(NtCurrentProcess(), &addr, &length, MEM_RELEASE))
         ret = -1;
     return ret;
@@ -78,19 +78,19 @@ int munmap(void *addr, size_t length)
 
 void* internal_mmap(void *addr, unsigned long length, int prot, int flags, int fd, ssize_t offset)
 {
-    if (box64_dynarec_log) printf_log(LOG_INFO, "%p %x %i %i\n", addr, length, prot, flags);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_INFO, "%p %x %i %i\n", addr, length, prot, flags);
     return mmap(addr, length, prot, flags, fd, offset);
 }
 
 int internal_munmap(void* addr, unsigned long length)
 {
-    if (box64_dynarec_log) printf_log(LOG_INFO, "%p %x\n", addr, length);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_INFO, "%p %x\n", addr, length);
     return munmap(addr, length);
 }
 
 
 char *strerror(int errnum)
 {
-    if (box64_dynarec_log) printf_log(LOG_INFO, "error number: %i\n", errnum);
+    if (BOX64ENV(dynarec_log)) printf_log(LOG_INFO, "error number: %i\n", errnum);
     return "see above";
 }

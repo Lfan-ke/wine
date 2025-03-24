@@ -123,7 +123,7 @@ void FreeDynablock(dynablock_t* db, int need_lock)
 void MarkDynablock(dynablock_t* db)
 {
     if(db) {
-        if (box64_dynarec_log) dynarec_log(LOG_DEBUG, "MarkDynablock %p %p-%p\n", db, db->x64_addr, db->x64_addr+db->x64_size-1);
+        if (BOX64ENV(dynarec_log)) dynarec_log(LOG_DEBUG, "MarkDynablock %p %p-%p\n", db, db->x64_addr, db->x64_addr+db->x64_size-1);
         if(!setJumpTableIfRef64(db->x64_addr, db->jmpnext, db->block)) {
             dynablock_t* old = db;
             db = getDB((uintptr_t)old->x64_addr);
@@ -153,7 +153,7 @@ void MarkRangeDynablock(dynablock_t* db, uintptr_t addr, uintptr_t size)
     // Mark will try to find *any* blocks that intersect the range to mark
     if(!db)
         return;
-    if (box64_dynarec_log) dynarec_log(LOG_DEBUG, "MarkRangeDynablock %p-%p .. startdb=%p, sizedb=%p\n", (void*)addr, (void*)addr+size-1, (void*)db->x64_addr, (void*)db->x64_size);
+    if (BOX64ENV(dynarec_log)) dynarec_log(LOG_DEBUG, "MarkRangeDynablock %p-%p .. startdb=%p, sizedb=%p\n", (void*)addr, (void*)addr+size-1, (void*)db->x64_addr, (void*)db->x64_size);
     if(IntervalIntersects((uintptr_t)db->x64_addr, (uintptr_t)db->x64_addr+db->x64_size-1, addr, addr+size+1))
         MarkDynablock(db);
 }
@@ -175,7 +175,7 @@ dynablock_t *AddNewDynablock(uintptr_t addr)
 {
     dynablock_t* block;
     // create and add new block
-    if (box64_dynarec_log) dynarec_log(LOG_VERBOSE, "Ask for DynaRec Block creation @%p\n", (void*)addr);
+    if (BOX64ENV(dynarec_log)) dynarec_log(LOG_VERBOSE, "Ask for DynaRec Block creation @%p\n", (void*)addr);
     block = (dynablock_t*)customCalloc(1, sizeof(dynablock_t));
     return block;
 }
@@ -213,7 +213,7 @@ static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t 
     }
 
     if(need_lock) {
-        if(box64_dynarec_wait) {
+        if(BOX64ENV(dynarec_wait)) {
             mutex_lock(&my_context->mutex_dyndump);
         } else {
             if(mutex_trylock(&my_context->mutex_dyndump))   // FillBlock not available for now
@@ -257,7 +257,7 @@ static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t 
     // check size
     if(block) {
 #ifndef RV64
-        if (offsetof(x64emu_t, win64_teb) != 3136)
+        if (offsetof(x64emu_t, win64_teb) != 3128)
         {
             // fix it in: arm64_epilog.S arm64_next.S
             while (1)
@@ -279,7 +279,7 @@ static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t 
             if(block->x64_size) {
                 if(block->x64_size>my_context->max_db_size) {
                     my_context->max_db_size = block->x64_size;
-                    if (box64_dynarec_log) dynarec_log(LOG_INFO, "BOX64 Dynarec: higher max_db=%d\n", my_context->max_db_size);
+                    if (BOX64ENV(dynarec_log)) dynarec_log(LOG_INFO, "BOX64 Dynarec: higher max_db=%d\n", my_context->max_db_size);
                 }
                 block->done = 1;    // don't validate the block if the size is null, but keep the block
                 rb_set(my_context->db_sizes, block->x64_size, block->x64_size+1, rb_get(my_context->db_sizes, block->x64_size)+1);
@@ -289,7 +289,7 @@ static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t 
     if(need_lock)
         mutex_unlock(&my_context->mutex_dyndump);
 
-    if (box64_dynarec_log) dynarec_log(LOG_DEBUG, "%04d| --- DynaRec Block created @%p:%p (%p, 0x%x bytes)\n", GetTID(), (void*)addr, (void*)(addr+((block)?block->x64_size:1)-1), (block)?block->block:0, (block)?block->size:0);
+    if (BOX64ENV(dynarec_log)) dynarec_log(LOG_DEBUG, "%04d| --- DynaRec Block created @%p:%p (%p, 0x%x bytes)\n", GetTID(), (void*)addr, (void*)(addr+((block)?block->x64_size:1)-1), (block)?block->block:0, (block)?block->size:0);
 
     return block;
 }
@@ -322,7 +322,7 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
             } else
                 FreeInvalidDynablock(old, need_lock);
         } else {
-            if (box64_dynarec_log) dynarec_log(LOG_DEBUG, "Validating block %p from %p:%p (hash:%X, always_test:%d) for %p\n", db, db->x64_addr, db->x64_addr+db->x64_size-1, db->hash, db->always_test, (void*)addr);
+            if (BOX64ENV(dynarec_log)) dynarec_log(LOG_DEBUG, "Validating block %p from %p:%p (hash:%X, always_test:%d) for %p\n", db, db->x64_addr, db->x64_addr+db->x64_size-1, db->hash, db->always_test, (void*)addr);
             if(db->always_test)
                 protectDB((uintptr_t)db->x64_addr, db->x64_size);
             else

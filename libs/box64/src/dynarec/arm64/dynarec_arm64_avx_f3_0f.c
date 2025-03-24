@@ -142,13 +142,13 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
             nextop = F8;
             GETGD;
             GETEXSS(d0, 0, 0);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);
                 BFCw(x5, FPSR_IOC, 1);   // reset IOC bit
                 MSR_fpsr(x5);
             }
             FCVTZSxwS(gd, d0);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);   // get back FPSR to check the IOC bit
                 TBZ_NEXT(x5, FPSR_IOC);
                 if(rex.w) {
@@ -163,7 +163,7 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
             nextop = F8;
             GETGD;
             GETEXSS(q0, 0, 0);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);
                 BFCw(x5, FPSR_IOC, 1);   // reset IOC bit
                 MSR_fpsr(x5);
@@ -173,7 +173,7 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
             FRINTIS(d1, q0);
             x87_restoreround(dyn, ninst, u8);
             FCVTZSxwS(gd, d1);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);   // get back FPSR to check the IOC bit
                 TBZ_NEXT(x5, FPSR_IOC);
                 if(rex.w) {
@@ -236,35 +236,53 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
         case 0x58:
             INST_NAME("VADDSS Gx, Vx, Ex");
             nextop = F8;
-            d1 = fpu_get_scratch(dyn, ninst);
+            q2 = fpu_get_scratch(dyn, ninst);
             GETEXSS(v1, 0, 0);
             GETGX_empty_VX(v0, v2);
+            if(!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn, ninst);
+                q0 = fpu_get_scratch(dyn, ninst);
+                // check if any input value was NAN
+                FMAXS(q1, v0, v1);    // propagate NAN
+                FCMEQS(q1, q1, q1);    // 0 if NAN, 1 if not NAN
+                FADDS(q2, v1, v2);  // the high part of the vector is erased...
+                FCMEQS(q0, q2, q2);    // 0 => out is NAN
+                VBIC(q0, q1, q0);      // forget it in any input was a NAN already
+                VSHL_32(q0, q0, 31);     // only keep the sign bit
+                VORR(q2, q2, q0);      // NAN -> -NAN
+            } else {
+                FADDS(q2, v1, v2);  // the high part of the vector is erased...
+            }
             if(v0!=v2) {
-                if(v0==v1)  {
-                    VMOV(d1, v1);
-                    v1 = d1;
-                }
                 VMOVQ(v0, v2);
             }
-            FADDS(d1, v0, v1);
-            VMOVeS(v0, 0, d1, 0);
+            VMOVeS(v0, 0, q2, 0);
             YMM0(gd)
             break;
         case 0x59:
             INST_NAME("VMULSS Gx, Vx, Ex");
             nextop = F8;
-            d1 = fpu_get_scratch(dyn, ninst);
+            q2 = fpu_get_scratch(dyn, ninst);
             GETEXSS(v1, 0, 0);
             GETGX_empty_VX(v0, v2);
+            if(!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn, ninst);
+                q0 = fpu_get_scratch(dyn, ninst);
+                // check if any input value was NAN
+                FMAXS(q1, v0, v1);    // propagate NAN
+                FCMEQS(q1, q1, q1);    // 0 if NAN, 1 if not NAN
+                FMULS(q2, v1, v2);  // the high part of the vector is erased...
+                FCMEQS(q0, q2, q2);    // 0 => out is NAN
+                VBIC(q0, q1, q0);      // forget it in any input was a NAN already
+                VSHL_32(q0, q0, 31);     // only keep the sign bit
+                VORR(q2, q2, q0);      // NAN -> -NAN
+            } else {
+                FMULS(q2, v1, v2);  // the high part of the vector is erased...
+            }
             if(v0!=v2) {
-                if(v0==v1)  {
-                    VMOV(d1, v1);
-                    v1 = d1;
-                }
                 VMOVQ(v0, v2);
             }
-            FMULS(d1, v0, v1);
-            VMOVeS(v0, 0, d1, 0);
+            VMOVeS(v0, 0, q2, 0);
             YMM0(gd)
             break;
         case 0x5A:
@@ -288,13 +306,13 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
             INST_NAME("VCVTTPS2DQ Gx, Ex");
             nextop = F8;
             d0 = fpu_get_scratch(dyn, ninst);
-            if(!box64_dynarec_fastround) {
+            if(!BOX64ENV(dynarec_fastround)) {
                 MRS_fpsr(x5);
                 ORRw_mask(x4, xZR, 1, 0);    //0x80000000
             }
             for(int l=0; l<1+vex.l; ++l) {
                 if(!l) { GETGX_empty_EX(v0, v1, 0); } else { GETGY_empty_EY(v0, v1); }
-                if(box64_dynarec_fastround) {
+                if(BOX64ENV(dynarec_fastround)) {
                     VFCVTZSQS(v0, v1);
                 } else {
                     BFCw(x5, FPSR_IOC, 1);   // reset IOC bit
@@ -316,14 +334,27 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
         case 0x5C:
             INST_NAME("VSUBSS Gx, Vx, Ex");
             nextop = F8;
-            d1 = fpu_get_scratch(dyn, ninst);
+            q2 = fpu_get_scratch(dyn, ninst);
             GETEXSS(v1, 0, 0);
             GETGX_empty_VX(v0, v2);
-            FSUBS(d1, v2, v1);
+            if(!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn, ninst);
+                q0 = fpu_get_scratch(dyn, ninst);
+                // check if any input value was NAN
+                FMAXS(q1, v0, v1);    // propagate NAN
+                FCMEQS(q1, q1, q1);    // 0 if NAN, 1 if not NAN
+                FSUBS(q2, v2, v1);  // the high part of the vector is erased...
+                FCMEQS(q0, q2, q2);    // 0 => out is NAN
+                VBIC(q0, q1, q0);      // forget it in any input was a NAN already
+                VSHL_32(q0, q0, 31);     // only keep the sign bit
+                VORR(q2, q2, q0);      // NAN -> -NAN
+            } else {
+                FSUBS(q2, v2, v1);  // the high part of the vector is erased...
+            }
             if(v0!=v2) {
                 VMOVQ(v0, v2);
             }
-            VMOVeS(v0, 0, d1, 0);
+            VMOVeS(v0, 0, q2, 0);
             YMM0(gd)
             break;
         case 0x5D:
@@ -343,14 +374,27 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
         case 0x5E:
             INST_NAME("VDIVSS Gx, Vx, Ex");
             nextop = F8;
-            d1 = fpu_get_scratch(dyn, ninst);
+            q2 = fpu_get_scratch(dyn, ninst);
             GETEXSS(v1, 0, 0);
             GETGX_empty_VX(v0, v2);
-            FDIVS(d1, v2, v1);
+            if(!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn, ninst);
+                q0 = fpu_get_scratch(dyn, ninst);
+                // check if any input value was NAN
+                FMAXS(q1, v0, v1);    // propagate NAN
+                FCMEQS(q1, q1, q1);    // 0 if NAN, 1 if not NAN
+                FDIVS(q2, v2, v1);  // the high part of the vector is erased...
+                FCMEQS(q0, q2, q2);    // 0 => out is NAN
+                VBIC(q0, q1, q0);      // forget it in any input was a NAN already
+                VSHL_32(q0, q0, 31);     // only keep the sign bit
+                VORR(q2, q2, q0);      // NAN -> -NAN
+            } else {
+                FDIVS(q2, v2, v1);  // the high part of the vector is erased...
+            }
             if(v0!=v2) {
                 VMOVQ(v0, v2);
             }
-            VMOVeS(v0, 0, d1, 0);
+            VMOVeS(v0, 0, q2, 0);
             YMM0(gd)
             break;
         case 0x5F:
@@ -397,7 +441,7 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
             nextop = F8;
             d0 = fpu_get_scratch(dyn, ninst);
             for(int l=0; l<1+vex.l; ++l) {
-                if(!l) { GETEX(v1, 0, 1); GETGX(v0, 1); u8 = F8; } else { GETGY(v0, 1, MODREG?((nextop&7)+(rex.b<<3)):-1, -1, -1); GETEY(v1); }
+                if(!l) { GETEX_Y(v1, 0, 1); GETGX(v0, 1); u8 = F8; } else { GETGY(v0, 1, MODREG?((nextop&7)+(rex.b<<3)):-1, -1, -1); GETEY(v1); }
                 if(u8==0b00000000 || u8==0b01010101 || u8==0b10101010 || u8==0b11111111) {
                     VDUP_16(d0, v1, 4+(u8&3));
                 } else {
@@ -449,11 +493,30 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, 
                     VMOVQ(v1, v0);
                 } // no ymm raz here it seems
             } else {
-                addr = geted(dyn, addr, ninst, nextop, &ed, x1, &fixedaddress, NULL, 0xffe<<4, 15, rex, NULL, 0, 0);
-                VSTR128_U12(v0, ed, fixedaddress);
-                if(vex.l) {
-                    GETGY(v0, 0, -1, -1, -1);
-                    VSTR128_U12(v0, ed, fixedaddress+16);
+                IF_UNALIGNED(ip) {
+                    addr = geted(dyn, addr, ninst, nextop, &wback, x1, &fixedaddress, NULL, 0, 0, rex, NULL, 0, 0);
+                    if(wback!=x1) {
+                        MOVx_REG(x1, wback);
+                        wback = x1;
+                    }
+                    for(int i=0; i<16; ++i) {
+                        VST1_8(v0, i, wback);
+                        ADDx_U12(wback, wback, 1);
+                    }
+                    if(vex.l) {
+                        GETGY(v0, 0, -1, -1, -1);
+                        for(int i=0; i<16; ++i) {
+                            VST1_8(v0, i, wback);
+                            ADDx_U12(wback, wback, 1);
+                        }
+                    }
+                } else {
+                    addr = geted(dyn, addr, ninst, nextop, &ed, x1, &fixedaddress, NULL, 0xffe<<4, 15, rex, NULL, 0, 0);
+                    VSTR128_U12(v0, ed, fixedaddress);
+                    if(vex.l) {
+                        GETGY(v0, 0, -1, -1, -1);
+                        VSTR128_U12(v0, ed, fixedaddress+16);
+                    }
                 }
                 SMWRITE2();
             }

@@ -142,7 +142,7 @@ uintptr_t dynarec64_DB(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int ni
             INST_NAME("FNINIT");
             MESSAGE(LOG_DUMP, "Need Optimization\n");
             x87_purgecache(dyn, ninst, 0, x1, x2, x3);
-            CALL(reset_fpu, -1);
+            CALL(reset_fpu, -1, 0, 0);
             break;
         case 0xE8:
         case 0xE9:
@@ -203,11 +203,11 @@ uintptr_t dynarec64_DB(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int ni
                     INST_NAME("FISTTP Ed, ST0");
                     v1 = x87_get_st(dyn, ninst, x1, x2, 0, EXT_CACHE_ST_D);
                     addr = geted(dyn, addr, ninst, nextop, &wback, x3, x4, &fixedaddress, rex, NULL, 1, 0);
-                    if (!box64_dynarec_fastround) {
+                    if (!BOX64ENV(dynarec_fastround)) {
                         FSFLAGSI(0); // reset all bits
                     }
                     FCVTWD(x4, v1, RD_RTZ);
-                    if (!box64_dynarec_fastround) {
+                    if (!BOX64ENV(dynarec_fastround)) {
                         FRFLAGS(x5); // get back FPSR to check the IOC bit
                         ANDI(x5, x5, 1 << FR_NV);
                         BEQZ_MARK(x5);
@@ -227,12 +227,12 @@ uintptr_t dynarec64_DB(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int ni
                     u8 = x87_setround(dyn, ninst, x1, x2);
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, x3, &fixedaddress, rex, NULL, 1, 0);
                     v2 = fpu_get_scratch(dyn);
-                    if (!box64_dynarec_fastround) {
+                    if (!BOX64ENV(dynarec_fastround)) {
                         FSFLAGSI(0); // reset all bits
                     }
                     FCVTWD(x4, v1, RD_DYN);
                     x87_restoreround(dyn, ninst, u8);
-                    if (!box64_dynarec_fastround) {
+                    if (!BOX64ENV(dynarec_fastround)) {
                         FRFLAGS(x5); // get back FPSR to check the IOC bit
                         ANDI(x5, x5, 1 << FR_NV);
                         BEQ_MARK2(x5, xZR);
@@ -262,32 +262,27 @@ uintptr_t dynarec64_DB(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int ni
                         SD(x5, ed, fixedaddress + 0);
                         SH(x6, ed, fixedaddress + 8);
                     } else {
-                        if (box64_x87_no80bits) {
+                        if (BOX64ENV(x87_no80bits)) {
                             X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, EXT_CACHE_ST_D);
                             FLD(v1, ed, fixedaddress);
                         } else {
-                            if (ed != x1) {
-                                ADDI(x1, ed, fixedaddress);
-                            }
+                            ADDI(x1, ed, fixedaddress);
                             X87_PUSH_EMPTY_OR_FAIL(dyn, ninst, x3);
-                            CALL(native_fld, -1);
+                            CALL(native_fld, -1, x1, 0);
                         }
                     }
                     break;
                 case 7:
                     INST_NAME("FSTP tbyte");
-                    if (box64_x87_no80bits) {
+                    if (BOX64ENV(x87_no80bits)) {
                         v1 = x87_get_st(dyn, ninst, x1, x2, 0, EXT_CACHE_ST_D);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                         FSD(v1, wback, fixedaddress);
                     } else {
                         x87_forget(dyn, ninst, x1, x3, 0);
                         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, 0, 0);
-                        if (ed != x1) {
-                            MV(x1, ed);
-                        }
                         s0 = x87_stackcount(dyn, ninst, x3);
-                        CALL(native_fstp, -1);
+                        CALL(native_fstp, -1, ed, 0);
                         x87_unstackcount(dyn, ninst, x3, s0);
                     }
                     X87_POP_OR_FAIL(dyn, ninst, x3);

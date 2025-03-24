@@ -63,6 +63,7 @@ SOURCES = \
        src/dynarec/arm64/dynarec_arm64_67_avx_1.c \
        src/dynarec/arm64/dynarec_arm64_67_avx_2.c \
        src/dynarec/arm64/dynarec_arm64_67_avx_3.c \
+       src/dynarec/arm64/dynarec_arm64_arch.c \
        src/dynarec/arm64/dynarec_arm64_avx_0f38_0.c \
        src/dynarec/arm64/dynarec_arm64_avx_0f38_1.c \
        src/dynarec/arm64/dynarec_arm64_avx_0f38_2.c \
@@ -241,6 +242,7 @@ SOURCES = \
        src/dynarec/rv64/dynarec_rv64_67_32_1.c \
        src/dynarec/rv64/dynarec_rv64_67_32_2.c \
        src/dynarec/rv64/dynarec_rv64_67_32_3.c \
+       src/dynarec/rv64/dynarec_rv64_arch.c \
        src/dynarec/rv64/dynarec_rv64_d8_0.c \
        src/dynarec/rv64/dynarec_rv64_d8_1.c \
        src/dynarec/rv64/dynarec_rv64_d8_2.c \
@@ -361,4 +363,5 @@ SOURCES = \
        src/emu/x64trace.c \
        src/emu/x87emu_private.c \
        src/tools/bitutils.c \
+       src/tools/env.c \
        src/tools/rbtree.c

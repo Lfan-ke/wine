@@ -144,6 +144,9 @@ p0-p3 are used to pass scalable predicate arguments to a subroutine and to retur
 // always
 #define c__ 0b1110
 
+//FCMP type of opcode produce:
+// if any NAN: CV / v1 == v2: ZC / v1 < v2: N / v1 > v2: C
+
 int convert_bitmask(uint64_t bitmask);
 #define convert_bitmask_w(A)    convert_bitmask(((uint64_t)(A) << 32) + (uint32_t)(A))
 #define convert_bitmask_x(A)    convert_bitmask((uint64_t)A)
@@ -205,17 +208,26 @@ int convert_bitmask(uint64_t bitmask);
 
 #define SUBx_REG(Rd, Rn, Rm)                EMIT(ADDSUB_REG_gen(1, 1, 0, 0b00, Rm, 0, Rn, Rd))
 #define SUBSx_REG(Rd, Rn, Rm)              FEMIT(ADDSUB_REG_gen(1, 1, 1, 0b00, Rm, 0, Rn, Rd))
+#define SUBSx_REG_ASR(Rd, Rn, Rm, asr)     FEMIT(ADDSUB_REG_gen(1, 1, 1, 0b10, Rm, asr, Rn, Rd))
 #define SUBx_REG_LSL(Rd, Rn, Rm, lsl)       EMIT(ADDSUB_REG_gen(1, 1, 0, 0b00, Rm, lsl, Rn, Rd))
 #define SUBw_REG(Rd, Rn, Rm)                EMIT(ADDSUB_REG_gen(0, 1, 0, 0b00, Rm, 0, Rn, Rd))
 #define SUBw_REG_LSL(Rd, Rn, Rm, lsl)       EMIT(ADDSUB_REG_gen(0, 1, 0, 0b00, Rm, lsl, Rn, Rd))
+#define SUBw_REG_ASR(Rd, Rn, Rm, asr)       EMIT(ADDSUB_REG_gen(0, 1, 0, 0b10, Rm, asr, Rn, Rd))
 #define SUBSw_REG(Rd, Rn, Rm)              FEMIT(ADDSUB_REG_gen(0, 1, 1, 0b00, Rm, 0, Rn, Rd))
 #define SUBSw_REG_LSL(Rd, Rn, Rm, lsl)     FEMIT(ADDSUB_REG_gen(0, 1, 1, 0b00, Rm, lsl, Rn, Rd))
+#define SUBSw_REG_LSR(Rd, Rn, Rm, lsr)     FEMIT(ADDSUB_REG_gen(0, 1, 1, 0b01, Rm, lsr, Rn, Rd))
+#define SUBSw_REG_ASR(Rd, Rn, Rm, asr)     FEMIT(ADDSUB_REG_gen(0, 1, 1, 0b10, Rm, asr, Rn, Rd))
 #define SUBxw_REG(Rd, Rn, Rm)               EMIT(ADDSUB_REG_gen(rex.w, 1, 0, 0b00, Rm, 0, Rn, Rd))
 #define SUBz_REG(Rd, Rn, Rm)                EMIT(ADDSUB_REG_gen(rex.is32bits?0:1, 1, 0, 0b00, Rm, 0, Rn, Rd))
 #define SUBSxw_REG(Rd, Rn, Rm)             FEMIT(ADDSUB_REG_gen(rex.w, 1, 1, 0b00, Rm, 0, Rn, Rd))
+#define SUBSxw_REG_ASR(Rd, Rn, Rm, asr)    FEMIT(ADDSUB_REG_gen(rex.w, 1, 1, 0b10, Rm, asr, Rn, Rd))
 #define CMPSx_REG(Rn, Rm)                   SUBSx_REG(xZR, Rn, Rm)
+#define CMPSx_REG_ASR(Rn, Rm, asr)          SUBSx_REG_ASR(xZR, Rn, Rm, asr)
 #define CMPSw_REG(Rn, Rm)                   SUBSw_REG(wZR, Rn, Rm)
+#define CMPSw_REG_LSR(Rn, Rm, lsr)          SUBSw_REG_LSR(wZR, Rn, Rm, lsr)
+#define CMPSw_REG_ASR(Rn, Rm, asr)          SUBSw_REG_ASR(wZR, Rn, Rm, asr)
 #define CMPSxw_REG(Rn, Rm)                  SUBSxw_REG(xZR, Rn, Rm)
+#define CMPSxw_REG_ASR(Rn, Rm, asr)         SUBSxw_REG_ASR(xZR, Rn, Rm, asr)
 #define NEGx_REG(Rd, Rm)                    SUBx_REG(Rd, xZR, Rm);
 #define NEGw_REG(Rd, Rm)                    SUBw_REG(Rd, wZR, Rm);
 #define NEGxw_REG(Rd, Rm)                   SUBxw_REG(Rd, xZR, Rm);
@@ -247,6 +259,10 @@ int convert_bitmask(uint64_t bitmask);
 #define SBCSx_REG(Rd, Rn, Rm)      FEMIT(ADDSUBC_gen(1, 1, 1, Rm, Rn, Rd))
 #define SBCSw_REG(Rd, Rn, Rm)      FEMIT(ADDSUBC_gen(0, 1, 1, Rm, Rn, Rd))
 #define SBCSxw_REG(Rd, Rn, Rm)     FEMIT(ADDSUBC_gen(rex.w, 1, 1, Rm, Rn, Rd))
+
+#define SUB_ext(sf, op, S, Rm, option, imm3, Rn, Rd)    ((sf)<<31 | (op)<<30 | (S)<<29 | 0b01011<<24 | 1<<21 | (Rm)<<16 | (option)<<13 | (imm3)<<10 | (Rn)<<5 | (Rd))
+#define SUBxw_UXTB(Rd, Rn, Rm)      EMIT(SUB_ext(rex.w, 1, 0, Rm, 0b000, 0, Rn, Rd))
+#define SUBw_UXTB(Rd, Rn, Rm)       EMIT(SUB_ext(0, 1, 0, Rm, 0b000, 0, Rn, Rd))
 
 // CCMP compare if cond is true, set nzcv if false
 #define CCMP_reg(sf, Rm, cond, Rn, nzcv)    ((sf)<<31 | 1<<30 | 1<<29 | 0b11010010<<21 | (Rm)<<16 | (cond)<<12 | (Rn)<<5 | (nzcv))
@@ -290,18 +306,24 @@ int convert_bitmask(uint64_t bitmask);
 #define LDRx_REG_LSL3(Rt, Rn, Rm)       EMIT(LDR_REG_gen(0b11, Rm, 0b011, 1, Rn, Rt))
 #define LDRx_REG_UXTW3(Rt, Rn, Rm)      EMIT(LDR_REG_gen(0b11, Rm, 0b010, 1, Rn, Rt))
 #define LDRx_REG_SXTW(Rt, Rn, Rm)       EMIT(LDR_REG_gen(0b11, Rm, 0b110, 0, Rn, Rt))
+#define LDRx_REGz(Rt, Rn, Rm)           EMIT(LDR_REG_gen(0b11, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 #define LDRw_REG(Rt, Rn, Rm)            EMIT(LDR_REG_gen(0b10, Rm, 0b011, 0, Rn, Rt))
 #define LDRw_REG_LSL2(Rt, Rn, Rm)       EMIT(LDR_REG_gen(0b10, Rm, 0b011, 1, Rn, Rt))
 #define LDRw_REG_SXTW(Rt, Rn, Rm)       EMIT(LDR_REG_gen(0b10, Rm, 0b110, 0, Rn, Rt))
+#define LDRw_REGz(Rt, Rn, Rm)           EMIT(LDR_REG_gen(0b10, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 #define LDRxw_REG(Rt, Rn, Rm)           EMIT(LDR_REG_gen(0b10+rex.w, Rm, 0b011, 0, Rn, Rt))
 #define LDRz_REG(Rt, Rn, Rm)            EMIT(LDR_REG_gen(rex.is32bits?0b10:0b11, Rm, 0b011, 0, Rn, Rt))
 #define LDRxw_REG_SXTW(Rt, Rn, Rm)      EMIT(LDR_REG_gen(0b10+rex.w, Rm, 0b110, 0, Rn, Rt))
+#define LDRxw_REGz(Rt, Rn, Rm)          EMIT(LDR_REG_gen(0b10+rex.w, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 #define LDRz_REG_SXTW(Rt, Rn, Rm)       EMIT(LDR_REG_gen(rex.is32bits?0b10:0b11, Rm, 0b110, 0, Rn, Rt))
+#define LDRz_REGz(Rt, Rn, Rm)           EMIT(LDR_REG_gen(rex.is32bits?0b10:0b11, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 #define LDRB_REG(Rt, Rn, Rm)            EMIT(LDR_REG_gen(0b00, Rm, 0b011, 0, Rn, Rt))
 #define LDRB_REG_UXTW(Rt, Rn, Rm)       EMIT(LDR_REG_gen(0b00, Rm, 0b010, 0, Rn, Rt))
 #define LDRB_REG_SXTW(Rt, Rn, Rm)       EMIT(LDR_REG_gen(0b00, Rm, 0b110, 0, Rn, Rt))
+#define LDRB_REGz(Rt, Rn, Rm)           EMIT(LDR_REG_gen(0b00, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 #define LDRH_REG(Rt, Rn, Rm)            EMIT(LDR_REG_gen(0b01, Rm, 0b011, 0, Rn, Rt))
 #define LDRH_REG_SXTW(Rt, Rn, Rm)       EMIT(LDR_REG_gen(0b01, Rm, 0b110, 0, Rn, Rt))
+#define LDRH_REGz(Rt, Rn, Rm)           EMIT(LDR_REG_gen(0b01, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 
 #define LDRS_U12_gen(size, op1, opc, imm12, Rn, Rt)    ((size)<<30 | 0b111<<27 | (op1)<<24 | (opc)<<22 | (imm12)<<10 | (Rn)<<5 | (Rt))
 #define LDRSHx_U12(Rt, Rn, imm12)           EMIT(LDRS_U12_gen(0b01, 0b01, 0b10, ((uint32_t)(imm12>>1))&0xfff, Rn, Rt))
@@ -314,6 +336,7 @@ int convert_bitmask(uint64_t bitmask);
 #define LDRS_REG_gen(size, Rm, option, S, Rn, Rt)    ((size)<<30 | 0b111<<27 | 0b10<<22 | 1<<21 | (Rm)<<16 | (option)<<13 | (S)<<12 | (0b10)<<10 | (Rn)<<5 | (Rt))
 #define LDRSW_REG(Rt, Rn, Rm)           EMIT(LDRS_REG_gen(0b10, Rm, 0b011, 0, Rn, Rt))
 #define LDRSW_REG_SXTW(Rt, Rn, Rm)      EMIT(LDRS_REG_gen(0b10, Rm, 0b110, 0, Rn, Rt))
+#define LDRSW_REGz(Rt, Rn, Rm)          EMIT(LDRS_REG_gen(0b10, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 
 #define LDR_PC_gen(opc, imm19, Rt)      ((opc)<<30 | 0b011<<27 | (imm19)<<5 | (Rt))
 #define LDRx_literal(Rt, imm19)         EMIT(LDR_PC_gen(0b01, ((imm19)>>2)&0x7FFFF, Rt))
@@ -390,12 +413,15 @@ int convert_bitmask(uint64_t bitmask);
 #define STRw_REG_SXTW(Rt, Rn, Rm)       EMIT(STR_REG_gen(0b10, Rm, 0b110, 0, Rn, Rt))
 #define STRB_REG(Rt, Rn, Rm)            EMIT(STR_REG_gen(0b00, Rm, 0b011, 0, Rn, Rt))
 #define STRB_REG_SXTW(Rt, Rn, Rm)       EMIT(STR_REG_gen(0b00, Rm, 0b110, 0, Rn, Rt))
+#define STRB_REGz(Rt, Rn, Rm)           EMIT(STR_REG_gen(0b00, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 #define STRH_REG(Rt, Rn, Rm)            EMIT(STR_REG_gen(0b01, Rm, 0b011, 0, Rn, Rt))
 #define STRH_REG_SXTW(Rt, Rn, Rm)       EMIT(STR_REG_gen(0b01, Rm, 0b110, 0, Rn, Rt))
 #define STRxw_REG(Rt, Rn, Rm)           EMIT(STR_REG_gen(rex.w?0b11:0b10, Rm, 0b011, 0, Rn, Rt))
 #define STRxw_REG_SXTW(Rt, Rn, Rm)      EMIT(STR_REG_gen(rex.w?0b11:0b10, Rm, 0b110, 0, Rn, Rt))
+#define STRxw_REGz(Rt, Rn, Rm)          EMIT(STR_REG_gen(rex.w?0b11:0b10, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 #define STRz_REG(Rt, Rn, Rm)            EMIT(STR_REG_gen(rex.is32bits?0b10:0b11, Rm, 0b011, 0, Rn, Rt))
 #define STRz_REG_SXTW(Rt, Rn, Rm)       EMIT(STR_REG_gen(rex.is32bits?0b10:0b11, Rm, 0b110, 0, Rn, Rt))
+#define STRz_REGz(Rt, Rn, Rm)           EMIT(STR_REG_gen(rex.is32bits?0b10:0b11, Rm, rex.is32bits?0b110:0b011, 0, Rn, Rt))
 
 // LOAD/STORE PAIR
 #define MEMPAIR_gen(size, L, op2, imm7, Rt2, Rn, Rt)    ((size)<<31 | 0b101<<27 | (op2)<<23 | (L)<<22 | (imm7)<<15 | (Rt2)<<10 | (Rn)<<5 | (Rt))
@@ -560,7 +586,7 @@ int convert_bitmask(uint64_t bitmask);
 #define CSINV_gen(sf, Rm, cond, Rn, Rd)     ((sf)<<31 | 1<<30 | 0b11010100<<21 | (Rm)<<16 | (cond)<<12 | (Rn)<<5 | (Rd))
 #define CSINVx(Rd, Rn, Rm, cond)            EMIT(CSINV_gen(1, Rm, cond, Rn, Rd))
 #define CSINVw(Rd, Rn, Rm, cond)            EMIT(CSINV_gen(0, Rm, cond, Rn, Rd))
-#define CSINVxw(Rd, Rn, Rm, cond)           EMIT(CSINV_gen(rex.w?, Rm, cond, Rn, Rd))
+#define CSINVxw(Rd, Rn, Rm, cond)           EMIT(CSINV_gen(rex.w, Rm, cond, Rn, Rd))
 #define CINVx(Rd, Rn, cond)                 CSINVx(Rd, Rn, Rn, invertCond(cond))
 #define CINVw(Rd, Rn, cond)                 CSINVw(Rd, Rn, Rn, invertCond(cond))
 #define CINVxw(Rd, Rn, cond)                CSINVxw(Rd, Rn, Rn, invertCond(cond))
@@ -694,6 +720,7 @@ int convert_bitmask(uint64_t bitmask);
 #define BFCx(Rd, lsb, width)            BFMx(Rd, xZR, ((-(lsb))%64)&0x3f, (width)-1)
 #define BFCw(Rd, lsb, width)            BFMw(Rd, xZR, ((-(lsb))%32)&0x1f, (width)-1)
 #define BFCxw(Rd, lsb, width)           BFMxw(Rd, xZR, rex.w?(((-(lsb))%64)&0x3f):(((-(lsb))%32)&0x1f), (width)-1)
+#define BFCz(Rd, lsb, width)            if(rex.is32bits) {BFCw(Rd, lsb, width);} else {BFCx(Rd, lsb, width);}
 // Insert lsb:width part of Rn into low part of Rd (leaving rest of Rd untouched)
 #define BFXILx(Rd, Rn, lsb, width)      EMIT(BFM_gen(1, 0b01, 1, (lsb), (lsb)+(width)-1, Rn, Rd))
 // Insert lsb:width part of Rn into low part of Rd (leaving rest of Rd untouched)
@@ -918,10 +945,12 @@ int convert_bitmask(uint64_t bitmask);
 #define VLD64(A, B, C)      if(unscaled) {VLDR64_I9(A, B, C);} else {VLDR64_U12(A, B, C);}
 #define VLD32(A, B, C)      if(unscaled) {VLDR32_I9(A, B, C);} else {VLDR32_U12(A, B, C);}
 #define VLD16(A, B, C)      if(unscaled) {VLDR16_I9(A, B, C);} else {VLDR16_U12(A, B, C);}
+#define VLD8(A, B, C)       if(unscaled) {VLDR8_I9(A, B, C);} else {VLDR8_U12(A, B, C);}
 #define VST128(A, B, C)     if(unscaled) {VSTR128_I9(A, B, C);} else {VSTR128_U12(A, B, C);}
 #define VST64(A, B, C)      if(unscaled) {VSTR64_I9(A, B, C);} else {VSTR64_U12(A, B, C);}
 #define VST32(A, B, C)      if(unscaled) {VSTR32_I9(A, B, C);} else {VSTR32_U12(A, B, C);}
 #define VST16(A, B, C)      if(unscaled) {VSTR16_I9(A, B, C);} else {VSTR16_U12(A, B, C);}
+#define VST8(A, B, C)       if(unscaled) {VSTR8_I9(A, B, C);} else {VSTR8_U12(A, B, C);}
 
 #define VMEMW_gen(size, opc, imm9, op2, Rn, Rt)  ((size)<<30 | 0b111<<27 | 1<<26 | (opc)<<22 | (imm9)<<12 | (op2)<<10 | 0b01<<10 | (Rn)<<5 | (Rt))
 #define VLDR64_S9_postindex(Rt, Rn, imm9)   EMIT(VMEMW_gen(0b11, 0b01, (imm9)&0x1ff, 0b01, Rn, Rt))
@@ -1141,7 +1170,9 @@ int convert_bitmask(uint64_t bitmask);
 #define VFMOVDQ_8(Vd, u8)                   EMIT(FMOV_vector_imm(1, 1, ((u8)>>5)&0b111, (u8)&0b11111, Vd))
 
 #define FMOV_scalar_imm(type, imm8, Rd)     (0b11110<<24 | (type)<<22 | 1<<21 | (imm8)<<13 | 0b100<<10 | (Rd))
+// FMOV to Sd, imm=7 :~6:6:6:6:6:6:5:4 :3:2:1:0....
 #define FMOVS_8(Sd, u8)                     EMIT(FMOV_scalar_imm(0b00, u8, Sd))
+// FMOV to Dd, imm=7 :~6:6:6:6:6:6:6:6:6:5:4 :3:2:1:0....
 #define FMOVD_8(Dd, u8)                     EMIT(FMOV_scalar_imm(0b01, u8, Dd))
 
 // VMOV
@@ -1297,7 +1328,7 @@ int convert_bitmask(uint64_t bitmask);
 #define VFRSQRTSQS(Vd, Vn, Vm)      EMIT(FRSQRTS_vector(1, 0, Vm, Vn, Vd))
 #define VFRSQRTSQD(Vd, Vn, Vm)      EMIT(FRSQRTS_vector(1, 0, Vm, Vn, Vd))
 
-// CMP
+// CMP . NZCV: unordere=0011, eq=0110, inf=1000, sup=0010
 #define FCMP_scalar(type, Rn, Rm, opc)  (0b11110<<24 | (type)<<22 | 1<<21 | (Rm)<<16 | 0b1000<<10 | (Rn)<<5 | (opc)<<3)
 #define FCMPS(Sn, Sm)              FEMIT(FCMP_scalar(0b00, Sn, Sm, 0b00))
 #define FCMPD(Dn, Dm)              FEMIT(FCMP_scalar(0b01, Dn, Dm, 0b00))
@@ -1826,7 +1857,7 @@ int convert_bitmask(uint64_t bitmask);
 #define FCMLTS_0(Rd, Rn)             EMIT(FCMP_0_scalar(0, 0, 0b10, (Rn), (Rd)))
 #define FCMLTD_0(Rd, Rn)             EMIT(FCMP_0_scalar(0, 1, 0b10, (Rn), (Rd)))
 
-// Scalar Float CMP
+// Scalar Float CMEQ
 #define FCMP_op_scalar(U, E, sz, Rm, ac, Rn, Rd)    (0b01<<30 | (U)<<29 | 0b11110<<24 | (E)<<23 | (sz)<<22 | 1<<21 | (Rm)<<16 | 0b1110<<12 | (ac)<<11 | 1<<10 | (Rn)<<5 | (Rd))
 #define FCMEQS(Rd, Rn, Rm)          EMIT(FCMP_op_scalar(0, 0, 0, (Rm), 0, (Rn), (Rd)))
 #define FCMEQD(Rd, Rn, Rm)          EMIT(FCMP_op_scalar(0, 0, 1, (Rm), 0, (Rn), (Rd)))
