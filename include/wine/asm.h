@@ -45,6 +45,12 @@
 # define __ASM_EHABI(str)
 #endif
 
+#if defined(__aarch64__)
+# define __ASM_BTI(str) str
+#else
+# define __ASM_BTI(str)
+#endif
+
 #if defined(__WINE_PE_BUILD) && !defined(__i386__)
 # define __ASM_SEH(str) str
 #else
@@ -96,6 +102,7 @@
          __ASM_FUNC_ALIGN "\n\t" \
          __ASM_FUNC_TYPE(name) "\n" \
          __ASM_GLOBL(name) "\n\t" \
+         __ASM_BTI(".word 0xd50324ff\n\t" /* bti jc */) \
          __ASM_SEH(".seh_proc " name "\n\t") \
          __ASM_CFI(".cfi_startproc\n\t") \
          __ASM_EHABI(".fnstart\n\t") \
@@ -256,7 +263,8 @@
                        "1:\t.quad " __ASM_NAME("__wine_syscall_dispatcher") )
 #elif defined __arm64ec__
 # define __ASM_SYSCALL_FUNC(id,name) \
-    asm( ".seh_proc \"#" #name "$hp_target\"\n\t" \
+    asm( ".word 0xd50324ff\n\t" /* bti jc */ \
+         ".seh_proc \"#" #name "$hp_target\"\n\t" \
          ".seh_endprologue\n\t" \
          "mov x8, #%0\n\t" \
          "mov x9, x30\n\t" \
