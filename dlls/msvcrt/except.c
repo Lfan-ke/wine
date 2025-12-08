@@ -1097,10 +1097,10 @@ LONG __C_ExecuteExceptionFilter( EXCEPTION_POINTERS *ptrs, void *frame, PEXCEPTI
 #if defined(__aarch64__)  || defined(__arm64ec__)
 
 #ifdef __arm64ec__
-#define __C_specific_handler __C_specific_handler_arm64
+#define my__C_specific_handler __C_specific_handler_arm64
 #endif
 
-EXCEPTION_DISPOSITION WINAPI __C_specific_handler( EXCEPTION_RECORD *rec, void *frame,
+EXCEPTION_DISPOSITION WINAPI my__C_specific_handler( EXCEPTION_RECORD *rec, void *frame,
                                                    ARM64_NT_CONTEXT *context,
                                                    DISPATCHER_CONTEXT_ARM64 *dispatch )
 {
@@ -1172,14 +1172,14 @@ EXCEPTION_DISPOSITION WINAPI __C_specific_handler( EXCEPTION_RECORD *rec, void *
 }
 
 #ifdef __arm64ec__
-#undef __C_specific_handler
+#undef my__C_specific_handler
 #endif
 
 #endif /* __aarch64__ || __arm64ec__ */
 
 #ifdef __arm__
 
-EXCEPTION_DISPOSITION WINAPI __C_specific_handler( EXCEPTION_RECORD *rec, void *frame,
+EXCEPTION_DISPOSITION WINAPI my__C_specific_handler( EXCEPTION_RECORD *rec, void *frame,
                                                    CONTEXT *context, DISPATCHER_CONTEXT *dispatch )
 {
     const SCOPE_TABLE *table = dispatch->HandlerData;
@@ -1253,7 +1253,7 @@ EXCEPTION_DISPOSITION WINAPI __C_specific_handler( EXCEPTION_RECORD *rec, void *
 
 #ifdef __x86_64__
 
-EXCEPTION_DISPOSITION WINAPI __C_specific_handler( EXCEPTION_RECORD *rec, void *frame, CONTEXT *context,
+EXCEPTION_DISPOSITION WINAPI my__C_specific_handler( EXCEPTION_RECORD *rec, void *frame, CONTEXT *context,
                                                    DISPATCHER_CONTEXT *dispatch )
 {
     const SCOPE_TABLE *table = dispatch->HandlerData;
