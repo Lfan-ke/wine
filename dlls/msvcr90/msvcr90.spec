@@ -189,7 +189,7 @@
 @ cdecl __AdjustPointer(ptr ptr)
 @ stub __BuildCatchObject
 @ stub __BuildCatchObjectHelper
-@ stdcall -arch=!i386 __C_specific_handler(ptr long ptr ptr)
+@ stdcall -arch=!i386 __C_specific_handler(ptr long ptr ptr) my__C_specific_handler
 @ cdecl __CppXcptFilter(long ptr)
 @ stub __CxxCallUnwindDelDtor
 @ stub __CxxCallUnwindDtor
