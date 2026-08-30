@@ -160,6 +160,15 @@ extern void heap_thread_detach(void);
     TRACE( "x24=%016I64x x25=%016I64x x26=%016I64x x27=%016I64x\n", (c)->X24, (c)->X25, (c)->X26, (c)->X27 ); \
     TRACE( "x28=%016I64x cpsr=%08lx fpcr=%08lx fpsr=%08lx\n", (c)->X28, (c)->Cpsr, (c)->Fpcr, (c)->Fpsr ); \
     } while(0)
+#elif defined(__riscv64__)
+# define TRACE_CONTEXT(c) do { \
+    TRACE( " pc=%016I64x  sp=%016I64x  ra=%016I64x  fp=%016I64x\n", (c)->Pc, (c)->Sp, (c)->Ra, (c)->Fp ); \
+    TRACE( " a0=%016I64x  a1=%016I64x  a2=%016I64x  a3=%016I64x\n", (c)->A0, (c)->A1, (c)->A2, (c)->A3 ); \
+    TRACE( " a4=%016I64x  a5=%016I64x  a6=%016I64x  a7=%016I64x\n", (c)->A4, (c)->A5, (c)->A6, (c)->A7 ); \
+    TRACE( " s1=%016I64x  s2=%016I64x  s3=%016I64x  s4=%016I64x\n", (c)->S1, (c)->S2, (c)->S3, (c)->S4 ); \
+    TRACE( " s5=%016I64x  s6=%016I64x  s7=%016I64x  s8=%016I64x\n", (c)->S5, (c)->S6, (c)->S7, (c)->S8 ); \
+    TRACE( " s9=%016I64x s10=%016I64x s11=%016I64x\n", (c)->S9, (c)->S10, (c)->S11 ); \
+    } while(0)
 #endif
 
 #ifdef __arm64ec__
