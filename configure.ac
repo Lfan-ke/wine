@@ -166,6 +166,7 @@ case "$host_cpu" in
   arm*)            HOST_ARCH=arm ;;
   i[[3456789]]86*) HOST_ARCH=i386 ;;
   x86_64)          HOST_ARCH=x86_64 ;;
+  riscv64)         HOST_ARCH=riscv64 ;;
 esac
 m4_set_add_all([_AC_SUBST_VARS],[HOST_ARCH]m4_foreach([cpu],[aarch64,arm,arm64ec,i386,x86_64],
                                 [m4_foreach([var],[CC,CXX,CFLAGS,CXXFLAGS,EXTRACFLAGS,EXTRACXXFLAGS,LDFLAGS,DEBUG,TARGET,STRIP,DELAYLOADFLAG,DISABLED_SUBDIRS],[,cpu[_]var])]))
@@ -2043,6 +2044,10 @@ then
     then
       dnl gcc-4.6+ omits frame pointers by default, breaking some copy protections
       WINE_TRY_CFLAGS([-fno-omit-frame-pointer],[MSVCRTFLAGS="$MSVCRTFLAGS -fno-omit-frame-pointer"])
+    elif test "$HOST_ARCH" = riscv64
+    then
+      dnl riscv64 has no separate ms_abi
+      :
     else
       dnl Default to ms_abi on 64-bit
       AC_CACHE_CHECK([for working -mabi=ms], ac_cv_mabi_ms,
@@ -2103,10 +2108,10 @@ AC_SUBST(WINELOADER_PROGRAMS,"wine")
 
 case $host_os in
   linux*)
-    if test $HOST_ARCH != unknown
-    then
-      wine_use_preloader=yes
-    fi
+    case $HOST_ARCH in
+      unknown|riscv64) ;;
+      *) wine_use_preloader=yes ;;
+    esac
     ;;
 esac
 
@@ -2395,6 +2400,7 @@ case $host_cpu in
   *powerpc64*)      WINE_CHECK_DEFINE([__powerpc64__]) ;;
   *aarch64*)        WINE_CHECK_DEFINE([__aarch64__]) ;;
   *arm*)            WINE_CHECK_DEFINE([__arm__]) ;;
+  *riscv64*)        WINE_CHECK_DEFINE([__riscv64__]) ;;
 esac
 
 dnl *** Check for modules to disable by default

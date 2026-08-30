@@ -277,7 +277,6 @@ static NTSTATUS context_to_server( struct context_data *to, USHORT to_machine, c
 
     memset( to, 0, sizeof(*to) );
     to->machine = to_machine;
-ERR("...\n");
     switch (MAKELONG( from_machine, to_machine ))
     {
     case MAKELONG( IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_I386 ):
@@ -715,7 +714,6 @@ static void exception_request_flags_from_server( DWORD *context_flags, const str
 static NTSTATUS context_from_server( void *dst, const struct context_data *from, USHORT machine )
 {
     DWORD i, to_flags;
-ERR("...\n");
     switch (MAKELONG( from->machine, machine ))
     {
     case MAKELONG( IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_I386 ):

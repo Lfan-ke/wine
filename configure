@@ -6514,6 +6514,7 @@ case "$host_cpu" in
   arm*)            HOST_ARCH=arm ;;
   i[3456789]86*) HOST_ARCH=i386 ;;
   x86_64)          HOST_ARCH=x86_64 ;;
+  riscv64)         HOST_ARCH=riscv64 ;;
 esac
 
 
@@ -21065,6 +21066,9 @@ if test "x$ac_cv_cflags__fno_omit_frame_pointer" = xyes
 then :
   MSVCRTFLAGS="$MSVCRTFLAGS -fno-omit-frame-pointer"
 fi
+    elif test "$HOST_ARCH" = riscv64
+    then
+      :
     else
             { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking for working -mabi=ms" >&5
 printf %s "checking for working -mabi=ms... " >&6; }
@@ -21263,10 +21267,10 @@ WINELOADER_PROGRAMS="wine"
 
 case $host_os in
   linux*)
-    if test $HOST_ARCH != unknown
-    then
-      wine_use_preloader=yes
-    fi
+    case $HOST_ARCH in
+      unknown|riscv64) ;;
+      *) wine_use_preloader=yes ;;
+    esac
     ;;
 esac
 
@@ -22349,6 +22353,41 @@ printf '%s\n' "$ac_cv_cpp_def___arm__" >&6; }
 if test "x$ac_cv_cpp_def___arm__" = xyes
 then :
   EXTRACFLAGS="$EXTRACFLAGS -D__arm__"
+fi ;;
+  *riscv64*)        { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking whether we need to define __riscv64__" >&5
+printf %s "checking whether we need to define __riscv64__... " >&6; }
+if test ${ac_cv_cpp_def___riscv64__+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e) cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#ifdef __riscv64__
+#error no
+#endif
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  ac_cv_cpp_def___riscv64__=yes
+else case e in #(
+  e) ac_cv_cpp_def___riscv64__=no ;;
+esac
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext ;;
+esac
+fi
+{ printf '%s\n' "$as_me:${as_lineno-$LINENO}: result: $ac_cv_cpp_def___riscv64__" >&5
+printf '%s\n' "$ac_cv_cpp_def___riscv64__" >&6; }
+if test "x$ac_cv_cpp_def___riscv64__" = xyes
+then :
+  EXTRACFLAGS="$EXTRACFLAGS -D__riscv64__"
 fi ;;
 esac
 
