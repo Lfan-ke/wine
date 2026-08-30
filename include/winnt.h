@@ -8268,24 +8268,9 @@ static FORCEINLINE unsigned char InterlockedCompareExchange128( volatile __int64
                             "c" (xchg_high), "b" (xchg_low) );
     return ret;
 #elif defined(__riscv64__)
-#if 0
-#warning FIXME
-    struct tmp128_1 {__int64 h; __int64 l;} *d = (void*)dest;
-    struct tmp128_2 {__int64 h; __int64 l;} *c = (void*)compare;
-    if (__sync_bool_compare_and_swap( &d->h, c->h, xchg_high ))
-    {
-        d->l = xchg_low;
-        return TRUE;
-    }
-    return FALSE;
-#else
-    struct tmp128_1 {__int64 h; __int64 l;} oldcompare;
-    memcpy(&oldcompare, compare, sizeof(oldcompare));
-    if (__atomic_compare_exchange_16( (__int128 *)dest, (__int128 *)compare, ((__int128)xchg_high << 64) | xchg_low, FALSE, __ATOMIC_RELEASE, __ATOMIC_RELAXED ))
-        return TRUE;
-    memcpy(compare, &oldcompare, sizeof(oldcompare));
-    return FALSE;
-#endif
+    __int128 cmp = *(__int128 *)compare;
+    return __atomic_compare_exchange_n( (__int128 *)dest, &cmp, ((__int128)xchg_high << 64) | xchg_low,
+                                        FALSE, __ATOMIC_SEQ_CST, __ATOMIC_RELAXED );
 #else
     return __sync_bool_compare_and_swap( (__int128 *)dest, *(__int128 *)compare, ((__int128)xchg_high << 64) | xchg_low );
 #endif

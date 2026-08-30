@@ -788,7 +788,6 @@ LDDLLFLAGS
 DLLFLAGS
 OPENGL_LIBS
 I386_LIBS
-ATOMIC_LIBS
 DLLEXT
 PE_ARCHS
 MSGFMT
@@ -10545,7 +10544,7 @@ fi
 printf "%s\n" "$ac_cv_lib_atomic___atomic_compare_exchange_16" >&6; }
 if test "x$ac_cv_lib_atomic___atomic_compare_exchange_16" = xyes
 then :
-  ATOMIC_LIBS="-latomic"
+  LIBS="-latomic $LIBS"
 
 fi
 
@@ -24591,7 +24590,6 @@ ICOTOOL = $ICOTOOL
 MSGFMT = $MSGFMT
 PE_ARCHS = $PE_ARCHS
 DLLEXT = $DLLEXT
-ATOMIC_LIBS = $ATOMIC_LIBS
 I386_LIBS = $I386_LIBS
 OPENGL_LIBS = $OPENGL_LIBS
 DLLFLAGS = $DLLFLAGS
