@@ -3,7 +3,6 @@
  *
  * Copyright 2011 Alexandre Julliard
  * Copyright 2013 André Hentschel
- * Copyright 2017 Martin Storsjo
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,12 +26,10 @@
 #include <fpieee.h>
 
 #include "ntstatus.h"
-#define WIN32_NO_STATUS
 #include "windef.h"
 #include "winbase.h"
 #include "winternl.h"
 #include "msvcrt.h"
-#include "wine/exception.h"
 #include "excpt.h"
 #include "wine/debug.h"
 
@@ -41,106 +38,157 @@
 WINE_DEFAULT_DEBUG_CHANNEL(seh);
 
 
-/*********************************************************************
- *		__CxxExceptionFilter (MSVCRT.@)
+extern void *call_exc_handler( void *handler, ULONG_PTR frame, UINT flags, BYTE *nonvol_regs );
+__ASM_GLOBAL_FUNC( call_exc_handler,
+                   "addi sp, sp, -112\n\t"
+                   "sd ra, 104(sp)\n\t"
+                   "sd s0, 0(sp)\n\t"
+                   "sd s1, 8(sp)\n\t"
+                   "sd s2, 16(sp)\n\t"
+                   "sd s3, 24(sp)\n\t"
+                   "sd s4, 32(sp)\n\t"
+                   "sd s5, 40(sp)\n\t"
+                   "sd s6, 48(sp)\n\t"
+                   "sd s7, 56(sp)\n\t"
+                   "sd s8, 64(sp)\n\t"
+                   "sd s9, 72(sp)\n\t"
+                   "sd s10, 80(sp)\n\t"
+                   "sd s11, 88(sp)\n\t"
+                   "ld s0, 0(a3)\n\t"        /* nonvolatile regs */
+                   "ld s1, 8(a3)\n\t"
+                   "ld s2, 16(a3)\n\t"
+                   "ld s3, 24(a3)\n\t"
+                   "ld s4, 32(a3)\n\t"
+                   "ld s5, 40(a3)\n\t"
+                   "ld s6, 48(a3)\n\t"
+                   "ld s7, 56(a3)\n\t"
+                   "ld s8, 64(a3)\n\t"
+                   "ld s9, 72(a3)\n\t"
+                   "ld s10, 80(a3)\n\t"
+                   "ld s11, 88(a3)\n\t"
+                   "fld fs0, 96(a3)\n\t"
+                   "fld fs1, 104(a3)\n\t"
+                   "fld fs2, 112(a3)\n\t"
+                   "fld fs3, 120(a3)\n\t"
+                   "fld fs4, 128(a3)\n\t"
+                   "fld fs5, 136(a3)\n\t"
+                   "fld fs6, 144(a3)\n\t"
+                   "fld fs7, 152(a3)\n\t"
+                   "fld fs8, 160(a3)\n\t"
+                   "fld fs9, 168(a3)\n\t"
+                   "fld fs10, 176(a3)\n\t"
+                   "fld fs11, 184(a3)\n\t"
+                   "jalr a0\n\t"
+                   "ld ra, 104(sp)\n\t"
+                   "ld s0, 0(sp)\n\t"
+                   "ld s1, 8(sp)\n\t"
+                   "ld s2, 16(sp)\n\t"
+                   "ld s3, 24(sp)\n\t"
+                   "ld s4, 32(sp)\n\t"
+                   "ld s5, 40(sp)\n\t"
+                   "ld s6, 48(sp)\n\t"
+                   "ld s7, 56(sp)\n\t"
+                   "ld s8, 64(sp)\n\t"
+                   "ld s9, 72(sp)\n\t"
+                   "ld s10, 80(sp)\n\t"
+                   "ld s11, 88(sp)\n\t"
+                   "addi sp, sp, 112\n\t"
+                   "ret" )
+
+
+/*******************************************************************
+ *		call_catch_handler
  */
-int CDECL __CxxExceptionFilter( PEXCEPTION_POINTERS ptrs,
-                                const type_info *ti, int flags, void **copy )
+void *call_catch_handler( EXCEPTION_RECORD *rec )
 {
-    FIXME( "%p %p %x %p: not implemented\n", ptrs, ti, flags, copy );
-    return EXCEPTION_CONTINUE_SEARCH;
+    ULONG_PTR frame = rec->ExceptionInformation[1];
+    void *handler = (void *)rec->ExceptionInformation[5];
+    BYTE *nonvol_regs = (BYTE *)rec->ExceptionInformation[10];
+
+    TRACE( "calling %p frame %Ix\n", handler, frame );
+    return call_exc_handler( handler, frame, 0x100, nonvol_regs );
 }
 
-/*********************************************************************
- *		__CxxFrameHandler (MSVCRT.@)
+
+/*******************************************************************
+ *		call_unwind_handler
  */
-EXCEPTION_DISPOSITION CDECL __CxxFrameHandler(EXCEPTION_RECORD *rec, ULONG64 frame, CONTEXT *context,
-                                              DISPATCHER_CONTEXT *dispatch)
+void *call_unwind_handler( void *handler, ULONG_PTR frame, DISPATCHER_CONTEXT *dispatch )
 {
-    FIXME("%p %I64x %p %p: not implemented\n", rec, frame, context, dispatch);
-    return ExceptionContinueSearch;
+    TRACE( "calling %p frame %Ix\n", handler, frame );
+    return call_exc_handler( handler, frame, 0x100, dispatch->NonVolatileRegisters );
 }
 
 
-/*********************************************************************
- *		__CppXcptFilter (MSVCRT.@)
+/*******************************************************************
+ *		get_exception_pc
  */
-int CDECL __CppXcptFilter(NTSTATUS ex, PEXCEPTION_POINTERS ptr)
+ULONG_PTR get_exception_pc( DISPATCHER_CONTEXT *dispatch )
 {
-    /* only filter c++ exceptions */
-    if (ex != CXX_EXCEPTION) return EXCEPTION_CONTINUE_SEARCH;
-    return _XcptFilter(ex, ptr);
-}
-
-
-/*********************************************************************
- *		__CxxDetectRethrow (MSVCRT.@)
- */
-BOOL CDECL __CxxDetectRethrow(PEXCEPTION_POINTERS ptrs)
-{
-    PEXCEPTION_RECORD rec;
-
-    if (!ptrs)
-        return FALSE;
-
-    rec = ptrs->ExceptionRecord;
-
-    if (rec->ExceptionCode == CXX_EXCEPTION &&
-        rec->NumberParameters == 3 &&
-        rec->ExceptionInformation[0] == CXX_FRAME_MAGIC_VC6 &&
-        rec->ExceptionInformation[2])
-    {
-        ptrs->ExceptionRecord = msvcrt_get_thread_data()->exc_record;
-        return TRUE;
-    }
-    return (msvcrt_get_thread_data()->exc_record == rec);
-}
-
-
-/*********************************************************************
- *		__CxxQueryExceptionSize (MSVCRT.@)
- */
-unsigned int CDECL __CxxQueryExceptionSize(void)
-{
-    return sizeof(cxx_exception_type);
+    ULONG_PTR pc = dispatch->ControlPc;
+    if (dispatch->ControlPcIsUnwound) pc -= 4;
+    return pc;
 }
 
 
 /*******************************************************************
  *		_setjmp (MSVCRT.@)
  */
-__ASM_GLOBAL_FUNC(MSVCRT__setjmp,
-                  "j " __ASM_NAME("__wine_setjmpex"));
+__ASM_GLOBAL_FUNC( _setjmp, "j _setjmpex" );
 
-/*******************************************************************
- *		longjmp (MSVCRT.@)
- */
-void __cdecl MSVCRT_longjmp(_JUMP_BUFFER *jmp, int retval)
-{
-    EXCEPTION_RECORD rec;
-
-    if (!retval) retval = 1;
-    if (jmp->Frame)
-    {
-        rec.ExceptionCode = STATUS_LONGJUMP;
-        rec.ExceptionFlags = 0;
-        rec.ExceptionRecord = NULL;
-        rec.ExceptionAddress = NULL;
-        rec.NumberParameters = 1;
-        rec.ExceptionInformation[0] = (DWORD_PTR)jmp;
-        RtlUnwind((void *)jmp->Frame, (void *)jmp->Ra, &rec, IntToPtr(retval));
-    }
-    __wine_longjmp( (__wine_jmp_buf *)jmp, retval );
-}
 
 /*********************************************************************
- *              _fpieee_flt (MSVCRT.@)
+ *              handle_fpieee_flt
  */
-int __cdecl _fpieee_flt(__msvcrt_ulong exception_code, EXCEPTION_POINTERS *ep,
-        int (__cdecl *handler)(_FPIEEE_RECORD*))
+int handle_fpieee_flt( __msvcrt_ulong exception_code, EXCEPTION_POINTERS *ep,
+                       int (__cdecl *handler)(_FPIEEE_RECORD*) )
 {
     FIXME("(%lx %p %p)\n", exception_code, ep, handler);
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-#endif  /* __aarch64__ */
+__ASM_GLOBAL_FUNC( __C_ExecuteExceptionFilter,
+    "addi sp, sp, -112\n\t"
+    "sd ra, 104(sp)\n\t"
+    "sd s0, 0(sp)\n\t"
+    "sd s1, 8(sp)\n\t"
+    "sd s2, 16(sp)\n\t"
+    "sd s3, 24(sp)\n\t"
+    "sd s4, 32(sp)\n\t"
+    "sd s5, 40(sp)\n\t"
+    "sd s6, 48(sp)\n\t"
+    "sd s7, 56(sp)\n\t"
+    "sd s8, 64(sp)\n\t"
+    "sd s9, 72(sp)\n\t"
+    "sd s10, 80(sp)\n\t"
+    "sd s11, 88(sp)\n\t"
+    "ld s1, 8(a3)\n\t"        /* nonvolatile regs */
+    "ld s2, 16(a3)\n\t"
+    "ld s3, 24(a3)\n\t"
+    "ld s4, 32(a3)\n\t"
+    "ld s5, 40(a3)\n\t"
+    "ld s6, 48(a3)\n\t"
+    "ld s7, 56(a3)\n\t"
+    "ld s8, 64(a3)\n\t"
+    "ld s9, 72(a3)\n\t"
+    "ld s10, 80(a3)\n\t"
+    "ld s11, 88(a3)\n\t"
+    "ld a1, 0(a3)\n\t"        /* fp = frame */
+    "jalr a2\n\t"             /* filter */
+    "ld ra, 104(sp)\n\t"
+    "ld s0, 0(sp)\n\t"
+    "ld s1, 8(sp)\n\t"
+    "ld s2, 16(sp)\n\t"
+    "ld s3, 24(sp)\n\t"
+    "ld s4, 32(sp)\n\t"
+    "ld s5, 40(sp)\n\t"
+    "ld s6, 48(sp)\n\t"
+    "ld s7, 56(sp)\n\t"
+    "ld s8, 64(sp)\n\t"
+    "ld s9, 72(sp)\n\t"
+    "ld s10, 80(sp)\n\t"
+    "ld s11, 88(sp)\n\t"
+    "addi sp, sp, 112\n\t"
+    "ret" );
+
+#endif  /* __riscv64__ */
