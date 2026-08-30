@@ -157,7 +157,7 @@ typedef struct _JUMP_BUFFER
     unsigned long Fpsr;*/
 } _JUMP_BUFFER;
 
-#define _JBLEN  16
+#define _JBLEN  28
 #define _JBTYPE unsigned __int64
 
 #else
